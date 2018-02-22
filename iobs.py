@@ -84,12 +84,15 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s -d <dev> [-s <sched>]' % name)
+    print('Usage: %s -d <dev> [-s <sched>] [-l] [-v]' % name)
     print('Command Line Arguments:')
     print('-d <dev>          : The device to use (e.g. /dev/sda). Multiple devices can be given to run in sequence')
     print('                    (e.g. /dev/sda,/dev/sdb).')
     print('-s <sched>        : (OPTIONAL) The I/O scheduler to use (e.g. noop). Multiple schedulers can be given to')
     print('                    run in sequence (e.g. cfq,noop). Defaults to cfq, deadline, and noop.')
+    print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
+    print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
+
 
 
 def parse_args(argv: list) -> bool:
