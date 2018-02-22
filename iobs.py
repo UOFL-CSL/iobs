@@ -24,7 +24,6 @@ from getopt import getopt, GetoptError
 
 import logging
 import os
-import pprint
 import sys
 
 
@@ -92,7 +91,6 @@ def usage():
     print('                    run in sequence (e.g. cfq,noop). Defaults to cfq, deadline, and noop.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
-
 
 
 def parse_args(argv: list) -> bool:
