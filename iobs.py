@@ -94,7 +94,13 @@ def print_detailed(*args, **kwargs):
     print_verbose(*args, **kwargs)
 
 
-def run_command(command: str, inp: str=''):
+def run_command(command: str, inp: str='') -> (str, int):
+    """Runs a command via subprocess communication.
+
+    :param command: The command.
+    :param inp: (OPTIONAL) Command input.
+    :return: A tuple containing (the output, the return code).
+    """
     args = shlex.split(command)
 
     try:
@@ -111,6 +117,20 @@ def run_command(command: str, inp: str=''):
     except ValueError as err:
         print_detailed(err)
         return None, None
+
+
+def run_system_command(command: str, silence: bool=True) -> int:
+    """Runs a system command.
+
+    :param command: The command.
+    :param silence: (OPTIONAL) Whether to silence the console output. Defaults to True.
+    :return: The return code.
+    """
+
+    if silence:
+        command = '%s >/dev/null 2>&1' % command
+    rc = os.system(command)
+    return rc
 
 
 def try_split(s: str, delimiter) -> list:
@@ -192,6 +212,7 @@ def check_args() -> bool:
     # Check runtime
     if not Mem.runtime:
         print_detailed('A runtime (seconds) must be given. Specify a runtime via -r <runtime>.')
+        return False
 
     # Check schedulers
     if not Mem.schedulers:  # Shouldn't typically occur due to defaults
@@ -241,12 +262,9 @@ def command_exists(command: str) -> bool:
     :param command: The command.
     :return: Returns True if exists, else False.
     """
-    out, rc = run_command('command -v %s' % command)
+    rc = run_system_command('command -v %s' % command)
 
-    if rc != 0:
-        return False
-
-    return len(out) > 0
+    return rc == 0
 
 
 def get_schedulers(device: str) -> list:
