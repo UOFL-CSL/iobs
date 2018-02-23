@@ -334,11 +334,13 @@ def parse_args(argv: list) -> bool:
     :return: Returns a boolean as True if parsed correctly, otherwise False.
     """
     try:
-        opts, args = getopt(argv, 'ld:r:s:v')
+        opts, args = getopt(argv, 'hld:r:s:v')
 
         for opt, arg in opts:
             if opt == '-d':
                 Mem.devices.extend(try_split(arg, ','))
+            elif opt == '-h':
+                return False
             elif opt == '-l':
                 Mem.log = True
             elif opt == '-r':
