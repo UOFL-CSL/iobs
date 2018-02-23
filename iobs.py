@@ -24,7 +24,10 @@ from getopt import getopt, GetoptError
 
 import logging
 import os
+import re
 import stat
+import shlex
+import subprocess
 import sys
 
 
@@ -38,6 +41,8 @@ class Mem:
     schedulers: list = ['cfq', 'deadline', 'noop']
     verbose: bool = False
 
+    # Regex
+    re_device = re.compile(r'/dev/(.*)')
 
 # region utils
 def ignore_exception(exception=Exception, default_val=None):
@@ -88,6 +93,25 @@ def print_detailed(*args, **kwargs):
     print_verbose(*args, **kwargs)
 
 
+def run_command(command: str, inp: str=''):
+    args = shlex.split(command)
+
+    try:
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+
+        out, err = p.communicate(inp)
+
+        rc = p.returncode
+
+        if err:
+            print_detailed(err)
+
+        return out.decode('utf-8'), rc
+    except ValueError as err:
+        print_detailed(err)
+        return None, None
+
+
 def try_split(s: str, delimiter) -> list:
     """Tries to split a string by the given delimiter(s).
 
@@ -117,7 +141,8 @@ def usage():
     print('                    (e.g. /dev/sda,/dev/sdb).')
     print('-r <runtime>      : The runtime (seconds) for running the traces.')
     print('-s <sched>        : (OPTIONAL) The I/O scheduler to use (e.g. noop). Multiple schedulers can be given to')
-    print('                    run in sequence (e.g. cfq,noop). Defaults to cfq, deadline, and noop.')
+    print('                    run in sequence (e.g. cfq,noop). Defaults to cfq, deadline, and noop for HDDs and SSDs.')
+    print('                    NVMe drives don\'t use a scheduler, but use blkmq instead.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
 
@@ -172,10 +197,40 @@ def check_args() -> bool:
         print_detailed('No schedulers given. Specify a scheduler via -s <sched>.')
         return False
 
-    # TODO: Validate schedulers given are valid schedulers
+    # Validates schedulers against all devices, HDDs and SSDs should allow all provided schedulers.
+    # TODO: Validate whether it is appropriate to force this restriction
+    for device in Mem.devices:
+        if is_nvme(device):
+            continue
+
+        schedulers = get_schedulers(device)
+
+        for scheduler in Mem.schedulers:
+            if scheduler not in schedulers:
+                print_detailed('Invalid scheduler %s specified for device %s' % (scheduler, device))
+                return False
 
     return True
 # endregion
+
+
+def get_schedulers(device: str) -> list:
+    """Returns a list of available schedulers for a given device.
+
+    :param device: The device.
+    :return: Returns a list of schedulers.
+    """
+    matches = Mem.re_device.findall(device)
+
+    if not matches:
+        return []
+
+    out, rc = run_command('cat /sys/block/%s/queue/scheduler' % matches[0])
+
+    if rc != 0:
+        return []
+
+    return out.replace('[', '').replace(']', '').split()
 
 
 @ignore_exception(FileNotFoundError, False)
@@ -188,6 +243,44 @@ def is_block_device(device: str) -> bool:
     """
     info = os.stat(device)
     return stat.S_ISBLK(info.st_mode)
+
+
+def is_nvme(device: str) -> bool:
+    """Returns whether the given device is an NVMe device.
+
+    :param device: The device.
+    :return: Returns True if is an NVMe device, else False.
+    """
+    matches = Mem.re_device.findall(device)
+
+    if not matches:
+        return False
+
+    out, rc = run_command('cat /sys/block/%s/queue/scheduler' % matches[0])
+
+    if rc != 0:
+        return False
+
+    return out == 'none'
+
+
+def is_rotational_device(device: str) -> bool:
+    """Returns whether the given device is a rotational device.
+
+    :param device: The device.
+    :return: Returns True if is a rotational device, else False.
+    """
+    matches = Mem.re_device.findall(device)
+
+    if not matches:
+        return False
+
+    out, rc = run_command('cat /sys/block/%s/queue/rotational' % matches[0])
+
+    if rc != 0:
+        return False
+
+    return int(out) == 1
 
 
 def main(argv):
