@@ -44,6 +44,7 @@ class Mem:
     # Regex
     re_device = re.compile(r'/dev/(.*)')
 
+
 # region utils
 def ignore_exception(exception=Exception, default_val=None):
     """A decorator function that ignores the exception raised, and instead returns a default value.
@@ -211,7 +212,41 @@ def check_args() -> bool:
                 return False
 
     return True
+
+
+def check_commands() -> bool:
+    """Validates whether the required commands exists on the system.
+
+    :return: Returns True if commmands exists, else False.
+    """
+    if not command_exists('blktrace'):
+        print_detailed('blktrace is not installed. Please install via \'sudo apt install blktrace\'')
+        return False
+
+    if not command_exists('blkparse'):  # Included with blktrace
+        print_detailed('blkparse is not installed. Please install via \'sudo apt install blktrace\'')
+        return False
+
+    if not command_exists('btt'):  # Included with blktrace
+        print_detailed('btt is not installed. Please install via \'sudo apt install blktrace\'')
+        return False
+
+    return True
 # endregion
+
+
+def command_exists(command: str) -> bool:
+    """Returns whether the given command exists on the system.
+
+    :param command: The command.
+    :return: Returns True if exists, else False.
+    """
+    out, rc = run_command('command -v %s' % command)
+
+    if rc != 0:
+        return False
+
+    return len(out) > 0
 
 
 def get_schedulers(device: str) -> list:
@@ -294,6 +329,9 @@ def main(argv):
 
     if not check_args():
         usage()
+        return
+
+    if not check_commands():
         return
 
 
