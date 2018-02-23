@@ -41,6 +41,7 @@ class Mem:
     runtime: int = 0
     schedulers: list = ['cfq', 'deadline', 'noop']
     verbose: bool = False
+    workloads: list = ['rr', 'rw', 'sr', 'sw']
 
     # Regex
     re_device = re.compile(r'/dev/(.*)')
@@ -157,7 +158,7 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s -d <dev> -r <runtime> [-s <sched>] [-l] [-v]' % name)
+    print('Usage: %s -d <dev> -r <runtime> [-s <sched>] [-w <workload>] [-l] [-v]' % name)
     print('Command Line Arguments:')
     print('-d <dev>          : The device to use (e.g. /dev/sda). Multiple devices can be given to run in sequence')
     print('                    (e.g. /dev/sda,/dev/sdb).')
@@ -165,6 +166,9 @@ def usage():
     print('-s <sched>        : (OPTIONAL) The I/O scheduler to use (e.g. noop). Multiple schedulers can be given to')
     print('                    run in sequence (e.g. cfq,noop). Defaults to cfq, deadline, and noop for HDDs and SSDs.')
     print('                    NVMe drives don\'t use a scheduler, but use blkmq instead.')
+    print('-w <workload>     : (OPTIONAL) The workload to use (e.g rw). Multiple workloads can be given to run in')
+    print('                    sequence (e.g. rw,sw). Four workloads are available: rr (random read),')
+    print('                    rw (random write), sr (sequential read), sw (sequential write). Defaults to all four.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
 
@@ -189,6 +193,8 @@ def parse_args(argv: list) -> bool:
                 Mem.schedulers = try_split(arg, ',')
             elif opt == '-v':
                 Mem.verbose = True
+            elif opt == '-w':
+                Mem.workloads = try_split(arg, ',')
         return True
     except GetoptError as err:
         print_verbose(err)
@@ -232,6 +238,16 @@ def check_args() -> bool:
             if scheduler not in schedulers:
                 print_detailed('Invalid scheduler %s specified for device %s' % (scheduler, device))
                 return False
+
+    # Check workloads
+    if not Mem.workloads:
+        print_detailed('No workloads given. Specify a workload via -s <sched>.')
+        return False
+
+    for workload in Mem.workloads:
+        if workload not in {'rr', 'rw', 'sr', 'sw'}:
+            print_detailed('Invalid workload %s specified.' % workload)
+            return False
 
     return True
 
