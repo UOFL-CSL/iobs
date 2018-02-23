@@ -32,33 +32,51 @@ class Mem:
 
     # Settings
     devices = []
-    schedulers = ['cfq', 'deadline', 'noop']
     log = False
+    runtime = 0
+    schedulers = ['cfq', 'deadline', 'noop']
     verbose = False
 
 
 # region utils
+def ignore_exception(exception=Exception, default_val=None):
+    """A decorator function that ignores the exception raised, and instead returns a default value.
+
+    :param exception: The exception to catch.
+    :param default_val: The default value.
+    :return: The decorated function.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except exception:
+                return default_val
+        return wrapper
+    return decorator
+
+
 def toggle_run(toggle: bool):
-    """A decorator which determines whether to execute the function based on the
-    supplied boolean parameter.
+    """A decorator which determines whether to execute the function based on the supplied boolean parameter.
 
     :param toggle: Whether to execute the function.
-    :return: The decorated function
+    :return: The decorated function.
     """
-    def tags_decorator(func):
+    def decorator(func):
         @wraps(func)
-        def func_wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):
             if toggle:
                 return func(*args, **kwargs)
             else:
                 return None
-        return func_wrapper
-    return tags_decorator
+        return wrapper
+    return decorator
 
 
 @toggle_run(Mem.log)
 def log(*args, **kwargs):
-    """Prints a message if logging enabled.
+    """Logs a message if logging is enabled.
 
     :param args: The arguments.
     :param kwargs: The keyword arguments.
@@ -68,13 +86,39 @@ def log(*args, **kwargs):
 
 @toggle_run(Mem.verbose)
 def print_verbose(*args, **kwargs):
-    """Prints a message if verbose enabled.
+    """Prints a message if verbose is enabled.
 
     :param args: The arguments.
     :param kwargs: The keyword arguments.
     """
     print(*args, **kwargs)
 
+
+def print_detailed(*args, **kwargs):
+    """Prints a message if verbose is enabled, and logs if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    log(*args, **kwargs)
+    print_verbose(*args, **kwargs)
+
+
+def try_split(s: str, delimiter) -> list:
+    """Tries to split a string by the given delimiter(s).
+
+    :param s: The string to split.
+    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
+    :return: Returns the string split into a list.
+    """
+    if isinstance(delimiter, tuple):
+        for d in delimiter:
+            if d in s:
+                return s.split(d)
+    elif delimiter in s:
+        return s.split(delimiter)
+
+    return [s]
 # endregion
 
 
@@ -83,10 +127,11 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s -d <dev> [-s <sched>] [-l] [-v]' % name)
+    print('Usage: %s -d <dev> -r <runtime> [-s <sched>] [-l] [-v]' % name)
     print('Command Line Arguments:')
     print('-d <dev>          : The device to use (e.g. /dev/sda). Multiple devices can be given to run in sequence')
     print('                    (e.g. /dev/sda,/dev/sdb).')
+    print('-r <runtime>      : The runtime (seconds) for running the traces.')
     print('-s <sched>        : (OPTIONAL) The I/O scheduler to use (e.g. noop). Multiple schedulers can be given to')
     print('                    run in sequence (e.g. cfq,noop). Defaults to cfq, deadline, and noop.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
@@ -107,13 +152,15 @@ def parse_args(argv: list) -> bool:
                 Mem.devices.extend(try_split(arg, ','))
             elif opt == '-l':
                 Mem.log = True
+            elif opt == 'r':
+                Mem.runtime = ignore_exception(ValueError, 0)(int)(arg)
             elif opt == '-s':
                 Mem.schedulers = try_split(arg, ',')
             elif opt == 'v':
                 Mem.verbose = True
         return True
     except GetoptError as err:
-        print(err)
+        print_detailed(err)
         return False
 
 
@@ -123,11 +170,14 @@ def check_args() -> bool:
     :return: Returns a boolean as True if requirements met, otherwise False.
     """
     if not Mem.devices:
-        print('No devices given. Specify a device via -d <dev>')
+        print_detailed('No devices given. Specify a device via -d <dev>.')
         return False
 
-    if not Mem.schedulers:  # Shouldn't occur due to defaults
-        print('No schedulers given. Specify a scheduler via -s <sched>')
+    if not Mem.runtime:
+        print_detailed('A runtime (seconds) must be given. Specify a runtime via -r <runtime>.')
+
+    if not Mem.schedulers:  # Shouldn't typically occur due to defaults
+        print_detailed('No schedulers given. Specify a scheduler via -s <sched>.')
         return False
 
     # TODO: Validate devices given are valid block devices, and are mounted
@@ -135,25 +185,12 @@ def check_args() -> bool:
     # TODO: Validate schedulers given are valid schedulers
 
     return True
-
-
-def try_split(s: str, delimiter) -> list:
-    if isinstance(delimiter, tuple):
-        for d in delimiter:
-            if d in s:
-                return s.split(d)
-    elif delimiter in s:
-        return s.split(delimiter)
-
-    return [s]
-                         
 # endregion
 
 
 def main(argv):
     # Initialization
     logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
-
 
     # Validate arguments
     if not parse_args(argv):
