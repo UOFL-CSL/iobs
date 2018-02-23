@@ -24,6 +24,7 @@ from getopt import getopt, GetoptError
 
 import logging
 import os
+import platform
 import re
 import stat
 import shlex
@@ -337,6 +338,11 @@ def is_rotational_device(device: str) -> bool:
 
 
 def main(argv):
+    # Validate os
+    ps = platform.system()
+    if ps != 'Linux':
+        print_verbose('OS must be Linux! Got %s instead' % ps)
+
     # Validate arguments
     if not parse_args(argv):
         usage()
