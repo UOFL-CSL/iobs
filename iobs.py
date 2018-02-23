@@ -39,9 +39,13 @@ class Mem:
     devices: list = []
     log: bool = False
     runtime: int = 0
-    schedulers: list = ['cfq', 'deadline', 'noop']
+    schedulers: list = []
     verbose: bool = False
-    workloads: list = ['rr', 'rw', 'sr', 'sw']
+    workloads: list = []
+
+    # Defaults
+    def_schedulers: list = ['cfq', 'deadline', 'noop']
+    def_workloads: list = ['rr', 'rw', 'sr', 'sw']
 
     # Regex
     re_device = re.compile(r'/dev/(.*)')
@@ -190,11 +194,11 @@ def parse_args(argv: list) -> bool:
             elif opt == '-r':
                 Mem.runtime = ignore_exception(ValueError, 0)(int)(arg)
             elif opt == '-s':
-                Mem.schedulers = try_split(arg, ',')
+                Mem.schedulers.extend(try_split(arg, ','))
             elif opt == '-v':
                 Mem.verbose = True
             elif opt == '-w':
-                Mem.workloads = try_split(arg, ',')
+                Mem.workloads.extend(try_split(arg, ','))
         return True
     except GetoptError as err:
         print_verbose(err)
@@ -222,9 +226,8 @@ def check_args() -> bool:
         return False
 
     # Check schedulers
-    if not Mem.schedulers:  # Shouldn't typically occur due to defaults
-        print_detailed('No schedulers given. Specify a scheduler via -s <sched>.')
-        return False
+    if not Mem.schedulers:  # Use defaults if none specified
+        Mem.schedulers = Mem.def_schedulers
 
     # Validates schedulers against all devices, HDDs and SSDs should allow all provided schedulers.
     # TODO: Validate whether it is appropriate to force this restriction
@@ -240,12 +243,11 @@ def check_args() -> bool:
                 return False
 
     # Check workloads
-    if not Mem.workloads:
-        print_detailed('No workloads given. Specify a workload via -s <sched>.')
-        return False
+    if not Mem.workloads:  # Use defaults if none specified
+        Mem.workloads = Mem.def_workloads
 
     for workload in Mem.workloads:
-        if workload not in {'rr', 'rw', 'sr', 'sw'}:
+        if workload not in Mem.def_workloads:
             print_detailed('Invalid workload %s specified.' % workload)
             return False
 
