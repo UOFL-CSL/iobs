@@ -24,6 +24,7 @@ from getopt import getopt, GetoptError
 
 import logging
 import os
+import stat
 import sys
 
 
@@ -31,11 +32,11 @@ class Mem:
     """A simple data-store for persisting and keeping track of global data."""
 
     # Settings
-    devices = []
-    log = False
-    runtime = 0
-    schedulers = ['cfq', 'deadline', 'noop']
-    verbose = False
+    devices: list = []
+    log: bool = False
+    runtime: int = 0
+    schedulers: list = ['cfq', 'deadline', 'noop']
+    verbose: bool = False
 
 
 # region utils
@@ -57,41 +58,24 @@ def ignore_exception(exception=Exception, default_val=None):
     return decorator
 
 
-def toggle_run(toggle: bool):
-    """A decorator which determines whether to execute the function based on the supplied boolean parameter.
-
-    :param toggle: Whether to execute the function.
-    :return: The decorated function.
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            if toggle:
-                return func(*args, **kwargs)
-            else:
-                return None
-        return wrapper
-    return decorator
-
-
-@toggle_run(Mem.log)
 def log(*args, **kwargs):
     """Logs a message if logging is enabled.
 
     :param args: The arguments.
     :param kwargs: The keyword arguments.
     """
-    logging.debug(*args, **kwargs)
+    if Mem.log:
+        logging.debug(*args, **kwargs)
 
 
-@toggle_run(Mem.verbose)
 def print_verbose(*args, **kwargs):
     """Prints a message if verbose is enabled.
 
     :param args: The arguments.
     :param kwargs: The keyword arguments.
     """
-    print(*args, **kwargs)
+    if Mem.verbose:
+        print(*args, **kwargs)
 
 
 def print_detailed(*args, **kwargs):
@@ -145,22 +129,22 @@ def parse_args(argv: list) -> bool:
     :return: Returns a boolean as True if parsed correctly, otherwise False.
     """
     try:
-        opts, args = getopt(argv, 'ld:s:v')
+        opts, args = getopt(argv, 'ld:r:s:v')
 
         for opt, arg in opts:
             if opt == '-d':
                 Mem.devices.extend(try_split(arg, ','))
             elif opt == '-l':
                 Mem.log = True
-            elif opt == 'r':
+            elif opt == '-r':
                 Mem.runtime = ignore_exception(ValueError, 0)(int)(arg)
             elif opt == '-s':
                 Mem.schedulers = try_split(arg, ',')
-            elif opt == 'v':
+            elif opt == '-v':
                 Mem.verbose = True
         return True
     except GetoptError as err:
-        print_detailed(err)
+        print_verbose(err)
         return False
 
 
@@ -169,18 +153,24 @@ def check_args() -> bool:
 
     :return: Returns a boolean as True if requirements met, otherwise False.
     """
+    # Check devices
     if not Mem.devices:
         print_detailed('No devices given. Specify a device via -d <dev>.')
         return False
 
+    for device in Mem.devices:
+        if not is_block_device(device):
+            print_detailed('The device %s is not a valid block device.' % device)
+            return False
+
+    # Check runtime
     if not Mem.runtime:
         print_detailed('A runtime (seconds) must be given. Specify a runtime via -r <runtime>.')
 
+    # Check schedulers
     if not Mem.schedulers:  # Shouldn't typically occur due to defaults
         print_detailed('No schedulers given. Specify a scheduler via -s <sched>.')
         return False
-
-    # TODO: Validate devices given are valid block devices, and are mounted
 
     # TODO: Validate schedulers given are valid schedulers
 
@@ -188,14 +178,26 @@ def check_args() -> bool:
 # endregion
 
 
-def main(argv):
-    # Initialization
-    logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
+@ignore_exception(FileNotFoundError, False)
+@ignore_exception(TypeError, False)
+def is_block_device(device: str) -> bool:
+    """Returns whether the given device is a valid block device.
 
+    :param device: The device.
+    :return: Returns True if is a valid block device, else False.
+    """
+    info = os.stat(device)
+    return stat.S_ISBLK(info.st_mode)
+
+
+def main(argv):
     # Validate arguments
     if not parse_args(argv):
         usage()
         return
+
+    if Mem.log:
+        logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
 
     if not check_args():
         usage()
