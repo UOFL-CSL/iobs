@@ -341,22 +341,22 @@ def main(argv):
     # Validate os
     ps = platform.system()
     if ps != 'Linux':
-        print_verbose('OS must be Linux! Got %s instead' % ps)
+        sys.exit('OS is %s, must be Linux.' % ps)
 
     # Validate arguments
     if not parse_args(argv):
         usage()
-        return
+        sys.exit(1)
 
     if Mem.log:
         logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
 
     if not check_args():
         usage()
-        return
+        sys.exit(1)
 
     if not check_commands():
-        return
+        sys.exit(1)
 
 
 if __name__ == '__main__':
