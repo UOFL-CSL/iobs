@@ -25,11 +25,14 @@ from getopt import getopt, GetoptError
 import logging
 import os
 import platform
+import multiprocessing
 import re
 import stat
 import shlex
+import signal
 import subprocess
 import sys
+import time
 
 
 class Mem:
@@ -100,6 +103,94 @@ def print_detailed(*args, **kwargs):
     print_verbose(*args, **kwargs)
 
 
+def run_parallel_commands(commands: list, max_concurrent: int=multiprocessing.cpu_count(), abort_on_failure: bool=True) -> [(str, int)]:
+    """Runs multiple commands in parallel via subprocess communication.
+
+    A single failed process results in the remaining being stopped.
+
+    :param commands: The commands.
+    :param max_concurrent: The maximum number of concurrent processes.
+    :param abort_on_failure: Whether to abort if a single process failures, otherwise continues. Defaults to True.
+    :return: A list of tuples containing (the output, the return code).
+    """
+
+    if max_concurrent < 1:
+        print_detailed('Maximum concurrent processes must be > 0')
+        return None
+
+    processes = set()
+    completed_processes = set()
+
+    for command in sorted(commands):
+        args = shlex.split(command)
+
+        try:
+            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                                 preexec_fn=os.setsid)
+            processes.add(p)
+        except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
+            print_detailed(err)
+            if abort_on_failure:
+                break
+
+        # Limit the number of threads
+        while len(processes) >= max_concurrent:
+            time.sleep(0.5)
+
+            finished_processes = get_finished_processes(processes)
+
+            processes.difference_update(finished_processes)
+            completed_processes.update(finished_processes)
+
+            if abort_on_failure:
+                failed_processes = get_failed_processes(finished_processes)
+
+                if failed_processes:  # Something failed, abort!
+                    print_processes(failed_processes)
+                    kill_processes(processes)
+                    break
+    else:
+        # Wait for processes to finish
+        while len(processes) > 0:
+            time.sleep(0.5)
+
+            finished_processes = get_finished_processes(processes)
+
+            processes.difference_update(finished_processes)
+            completed_processes.update(finished_processes)
+
+            if abort_on_failure:
+                failed_processes = get_failed_processes(finished_processes)
+
+                if failed_processes:  # Something failed, abort!
+                    print_processes(failed_processes)
+                    kill_processes(processes)
+                    return None
+
+        ret = []
+
+        # Grab outputs from completed processes
+        for process in completed_processes:
+            out, err = process.communicate()
+
+            rc = process.returncode
+
+            if err:
+                print_detailed(err.decode('utf-8'))
+
+            ret.append((out.decode('utf-8'), rc))
+
+        return ret
+
+    # We got here because we aborted, continue the abortion...
+    failed_processes = get_failed_processes(processes)
+    print_processes(failed_processes)
+
+    kill_processes(processes)
+
+    return None
+
+
 def run_command(command: str, inp: str='') -> (str, int):
     """Runs a command via subprocess communication.
 
@@ -110,17 +201,18 @@ def run_command(command: str, inp: str='') -> (str, int):
     args = shlex.split(command)
 
     try:
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                             preexec_fn=os.setsid)
 
         out, err = p.communicate(inp)
 
         rc = p.returncode
 
         if err:
-            print_detailed(err)
+            print_detailed(err.decode('utf-8'))
 
         return out.decode('utf-8'), rc
-    except ValueError as err:
+    except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
         print_detailed(err)
         return None, None
 
@@ -154,6 +246,64 @@ def try_split(s: str, delimiter) -> list:
         return s.split(delimiter)
 
     return [s]
+
+
+def get_failed_processes(processes: set) -> set:
+    """Returns the processes which are failed.
+
+    :param processes: The processes.
+    :return: A set of failed processes.
+    """
+    failed_processes = set()
+
+    for process in processes:
+        rc = process.poll()
+
+        if rc is not None:  # Done processing
+            if rc != 0:  # Return code other than 0 indicates error
+                failed_processes.add(process)
+
+    return failed_processes
+
+
+def get_finished_processes(processes: set) -> set:
+    """Returns the processes which are finished.
+
+    :param processes: The processes.
+    :return: A set of finished processes.
+    """
+    finished_processes = set()
+
+    for process in processes:
+        rc = process.poll()
+
+        if rc is not None:  # Done processing
+            finished_processes.add(process)
+
+    return finished_processes
+
+
+def kill_processes(processes: set):
+    """Kills the processes.
+
+    :param processes: The processes.
+    """
+    for process in processes:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+
+
+def print_processes(processes: set):
+    """Prints the each processes's output.
+
+    :param processes: The processes.
+    """
+    for process in processes:
+        out, err = process.communicate()
+        if err:
+            print_detailed(err.decode('utf-8'))
+        if out:
+            print_detailed(out.decode('utf-8'))
+
 # endregion
 
 
@@ -271,10 +421,15 @@ def check_commands() -> bool:
         print_detailed('btt is not installed. Please install via \'sudo apt install blktrace\'')
         return False
 
+    if not command_exists('fio'):
+        print_detailed('fio is not installed. Please install via \'sudo apt install fio\'')
+        return False
+
     return True
 # endregion
 
 
+# region commands
 def command_exists(command: str) -> bool:
     """Returns whether the given command exists on the system.
 
@@ -353,6 +508,7 @@ def is_rotational_device(device: str) -> bool:
         return False
 
     return int(out) == 1
+# endregion
 
 
 def main(argv):
