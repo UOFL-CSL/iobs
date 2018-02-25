@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 __author__ = 'Jared Gillespie'
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 
 from functools import wraps
@@ -38,20 +38,217 @@ import time
 class Mem:
     """A simple data-store for persisting and keeping track of global data."""
 
-    # Settings
-    devices: list = []
-    log: bool = False
-    runtime: int = 0
-    schedulers: list = []
-    verbose: bool = False
-    workloads: list = []
+    def __init__(self):
+        # Constants
+        self.GLOBAL_HEADER = 'globals'
 
-    # Defaults
-    def_schedulers: list = ['cfq', 'deadline', 'noop']
-    def_workloads: list = ['rr', 'rw', 'sr', 'sw']
+        # Settings
+        self.config_file: str = None
+        self.continue_on_failure: bool = False
+        self.jobs: list = []
+        self.log: bool = False
+        self.verbose: bool = False
 
-    # Regex
-    re_device = re.compile(r'/dev/(.*)')
+        # Global Job Settings
+        self._command: str = None
+        self._devices: set = None
+        self._repetition: int = 1
+        self._runtime: int = None
+        self._schedulers: set = None
+        self._workload: str = None
+
+        # Regex
+        self.re_device = re.compile(r'/dev/(.*)')
+
+        # Validity
+        self.valid_global_settings = {'command', 'devices', 'schedulers', 'repetition', 'runtime', 'workload'}
+        self.valid_job_settings = {'command', 'devices', 'schedulers', 'repetition', 'runtime', 'workload'}
+        self.valid_workloads = {'fio'}
+
+    @property
+    def command(self) -> str:
+        return self._command
+
+    @command.setter
+    def command(self, value: str):
+        self._command = value
+
+    @property
+    def devices(self) -> set:
+        return self._devices
+
+    @devices.setter
+    def devices(self, value: str):
+        self._devices = set(try_split(value, ','))
+
+    @property
+    def repetition(self) -> int:
+        return self._repetition
+
+    @repetition.setter
+    def repetition(self, value: int):
+        conv_value = ignore_exception(ValueError, 0)(int)(value)
+
+        if conv_value < 1:
+            raise ValueError('Repetition given is < 1: %s' % value)
+
+        self._repetition = conv_value
+
+    @property
+    def runtime(self):
+        return self._runtime
+
+    @runtime.setter
+    def runtime(self, value: int):
+        conv_value = ignore_exception(ValueError, 0)(int)(value)
+
+        if conv_value < 1:
+            raise ValueError('Runtime given is < 1: %s' % value)
+
+        self._runtime = conv_value
+
+    @property
+    def schedulers(self) -> set:
+        return self._schedulers
+
+    @schedulers.setter
+    def schedulers(self, value):
+        self._schedulers = set(try_split(value, ','))
+
+    @property
+    def workload(self) -> str:
+        return self._workload
+
+    @workload.setter
+    def workload(self, value: str):
+        self._workload = value
+
+
+# Turns the class into a singleton (this is some sneaky stuff)
+Mem = Mem()
+
+
+class Job:
+    """A single job, which is representative of a single workload to be run."""
+
+    def __init__(self, name: str):
+        self._name: str = name
+        self._command: str = None
+        self._devices: set = None
+        self._repetition: int = None
+        self._runtime: int = None
+        self._schedulers: set = None
+        self._workload: str = None
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def command(self) -> str:
+        return self._command
+
+    @command.setter
+    def command(self, value: str):
+        self._command = value
+
+    @property
+    def devices(self) -> set:
+        return self._devices
+
+    @devices.setter
+    def devices(self, value):
+        self._devices = set(try_split(value, ','))
+
+    @property
+    def repetition(self) -> int:
+        return self._repetition
+
+    @repetition.setter
+    def repetition(self, value: int):
+        conv_value = ignore_exception(ValueError, 0)(int)(value)
+
+        if conv_value < 1:
+            raise ValueError('Repetition given is < 1: %s' % value)
+
+        self._repetition = conv_value
+
+    @property
+    def runtime(self) -> int:
+        return self._runtime
+
+    @runtime.setter
+    def runtime(self, value: int):
+        conv_value = ignore_exception(ValueError, 0)(int)(value)
+
+        if conv_value < 1:
+            raise ValueError('Runtime given is < 1: %s' % value)
+
+        self._runtime = conv_value
+
+    @property
+    def schedulers(self) -> set:
+        return self._schedulers
+
+    @schedulers.setter
+    def schedulers(self, value):
+        self._schedulers = set(try_split(value, ','))
+
+    @property
+    def workload(self) -> str:
+        return self._workload
+
+    @workload.setter
+    def workload(self, value):
+        self._workload = value
+
+    def fill_missing(self, o):
+        """Fills in missing values from object.
+
+        :param o: The object.
+        """
+        if self._devices is None:
+            self._devices = ignore_exception(AttributeError)(getattr)(o, 'devices')
+
+        if self._runtime is None:
+            self._runtime = ignore_exception(AttributeError)(getattr)(o, 'runtime')
+
+        if self._schedulers is None:
+            self._schedulers = ignore_exception(AttributeError)(getattr)(o, 'schedulers')
+
+        if self._workload is None:
+            self._workload = ignore_exception(AttributeError)(getattr)(o, 'workload')
+
+    def is_valid(self) -> bool:
+        """Returns whether the job is valid.
+
+        :return: Returns True if valid, else False.
+        """
+        return self._devices is not None and \
+            self._runtime is not None and \
+            self._schedulers is not None and \
+            self._workload is not None
+
+    def get_invalid_props(self) -> list:
+        """Returns the properties that are invalid.
+
+        :return: A list of properties.
+        """
+        invalid_props = []
+
+        if self._devices is not None:
+            invalid_props.append('devices')
+
+        if self._runtime is not None:
+            invalid_props.append('runtime')
+
+        if self._schedulers is not None:
+            invalid_props.append('schedulers')
+
+        if self._workload is not None:
+            invalid_props.append('workload')
+
+        return invalid_props
 
 
 # region utils
@@ -101,6 +298,409 @@ def print_detailed(*args, **kwargs):
     """
     log(*args, **kwargs)
     print_verbose(*args, **kwargs)
+
+
+def try_split(s: str, delimiter) -> list:
+    """Tries to split a string by the given delimiter(s).
+
+    :param s: The string to split.
+    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
+    :return: Returns the string split into a list.
+    """
+    if isinstance(delimiter, tuple):
+        for d in delimiter:
+            if d in s:
+                return [i.strip() for i in s.split(d)]
+    elif delimiter in s:
+        return s.split(delimiter)
+
+    return [s]
+
+
+def get_failed_processes(processes: set) -> set:
+    """Returns the processes which are failed.
+
+    :param processes: The processes.
+    :return: A set of failed processes.
+    """
+    failed_processes = set()
+
+    for process in processes:
+        rc = process.poll()
+
+        if rc is not None:  # Done processing
+            if rc != 0:  # Return code other than 0 indicates error
+                failed_processes.add(process)
+
+    return failed_processes
+
+
+def get_finished_processes(processes: set) -> set:
+    """Returns the processes which are finished.
+
+    :param processes: The processes.
+    :return: A set of finished processes.
+    """
+    finished_processes = set()
+
+    for process in processes:
+        rc = process.poll()
+
+        if rc is not None:  # Done processing
+            finished_processes.add(process)
+
+    return finished_processes
+
+
+def is_valid_devices(devices: list) -> bool:
+    """Returns whether the given devices are valid.
+
+    :param devices: The devices.
+    :return: Returns True if all are valid, else False.
+    """
+    for device in devices:
+        if not is_block_device:
+            return False
+
+    return True
+
+
+def is_valid_setting(setting: str, header: str) -> bool:
+    """Returns whether the config setting is valid.
+
+    :return: Returns True if setting is valid, else False.
+    """
+    if not header:
+        return False
+
+    if not setting:
+        return False
+
+    if header == Mem.GLOBAL_HEADER:
+        return setting in Mem.valid_global_settings
+    else:
+        return setting in Mem.valid_job_settings
+
+
+def is_valid_workload(workload: str) -> bool:
+    """Returns whether the given workload is valid.
+
+    :param workload: The workload.
+    :return: Returns True if valid, else False.
+    """
+    if workload not in Mem.valid_workloads:
+        return False
+
+    if not command_exists(workload):
+        return False
+
+    return True
+
+
+def kill_processes(processes: set):
+    """Kills the processes.
+
+    :param processes: The processes.
+    """
+    for process in processes:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+
+
+def print_processes(processes: set):
+    """Prints the each processes's output.
+
+    :param processes: The processes.
+    """
+    for process in processes:
+        out, err = process.communicate()
+        if err:
+            print_detailed(err.decode('utf-8'))
+        if out:
+            print_detailed(out.decode('utf-8'))
+
+
+def validate_jobs() -> bool:
+    """Returns whether each job is valid.
+
+    :return: Returns True if all are valid, else False.
+    """
+    job_index = 0
+    while job_index < len(Mem.jobs):
+        job = Mem.jobs[job_index]
+
+        # Fill in missing settings from globals
+        job.fill_missing(Mem)
+
+        # Ensure job has required properties
+        if not job.is_valid():
+            ip = ', '.join(job.get_invalid_props())
+            print_detailed('Job %s is missing the required settings: %s' % (job.name, ip))
+            if Mem.continue_on_failure:
+                Mem.jobs.pop(job_index)
+                continue
+            else:
+                return False
+
+        if not is_valid_workload(job.workload):
+            print_detailed('%s is not installed. Please install the tool before use.' % job.workload)
+            if Mem.continue_on_failure:
+                Mem.jobs.pop(job_index)
+                continue
+            else:
+                return False
+
+        if not is_valid_devices(job.devices):
+            print_detailed('The devices %s are not valid block devices.' % job.devices)
+            if Mem.continue_on_failure:
+                Mem.jobs.pop(job_index)
+                continue
+            else:
+                return False
+
+        # We'll allow schedulers to be defined that don't exist for every device
+        # So no checks here...
+
+        job_index += 1
+
+    return len(Mem.jobs) > 0  # At least 1 job required
+# endregion
+
+
+# region command-line
+def usage():
+    """Displays command-line information."""
+    name = os.path.basename(__file__)
+    print('%s %s' % (name, __version__))
+    print('Usage: %s <file> [-l] [-v]' % name)
+    print('Command Line Arguments:')
+    print('<file>            : The configuration file to use.')
+    print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
+    print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
+    print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
+
+
+def parse_args(argv: list) -> bool:
+    """Parses the supplied arguments and persists in memory.
+
+    :param argv: A list of arguments.
+    :return: Returns a boolean as True if parsed correctly, otherwise False.
+    """
+    try:
+        opts, args = getopt(argv, 'hlv')
+
+        for opt, arg in opts:
+            if opt == '-c':
+                Mem.continue_on_failure = True
+            elif opt == '-h':
+                return False
+            elif opt == '-l':
+                Mem.log = True
+            elif opt == '-v':
+                Mem.verbose = True
+        return True
+    except GetoptError as err:
+        print_detailed(err)
+        return False
+
+
+def parse_config_file(file_path: str) -> bool:
+    """Parses the supplied file and persists data into memory.
+
+    :param file_path: The file.
+    :return: Returns True if settings are valid, else False.
+    """
+    Mem.config_file = file_path
+
+    if not os.path.isfile(Mem.config_file):
+        sys.exit('File not found: %s' % Mem.config_file)
+
+    re_header = re.compile(r'\s*\[(.*)\]\s*(?:#.*)*')
+
+    header = None
+
+    with open(Mem.config_file, 'r') as file:
+        for line in file:
+            # Header
+            header_match = re_header.fullmatch(line)
+
+            if header_match:
+                header = line[header_match.regs[1][0]:header_match.regs[1][1]]
+
+                if header != Mem.GLOBAL_HEADER:
+                    Mem.jobs.append(Job(header))
+                continue
+
+            # Comment
+            comment_index = line.find('#')
+
+            if comment_index != -1:
+                line = line[0:comment_index].strip()
+
+            if not line.strip():
+                continue
+
+            # Setting
+            line_split = line.split('=')
+
+            if len(line_split) != 2:  # Invalid syntax
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            name = line_split[0].strip()
+            value = line_split[1].strip()
+
+            if not name or not value:
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            if not is_valid_setting(name, header):
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            if not header:
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            if header == Mem.GLOBAL_HEADER:
+                try:
+                    setattr(Mem, name, value)
+                except ValueError:
+                    print_detailed('Invalid syntax in config file found: %s' % line)
+                    return False
+            else:
+                try:
+                    setattr(Mem.jobs[-1], name, value)
+                except ValueError:
+                    print_detailed('Invalid syntax in config file found: %s' % line)
+                    return False
+    return True
+# endregion
+
+
+# region commands
+def check_commands() -> bool:
+    """Validates whether the required commands exists on the system.
+
+    :return: Returns True if commands exists, else False.
+    """
+    if not command_exists('blktrace'):
+        print_detailed('blktrace is not installed. Please install via \'sudo apt install blktrace\'')
+        return False
+
+    if not command_exists('blkparse'):  # Included with blktrace
+        print_detailed('blkparse is not installed. Please install via \'sudo apt install blktrace\'')
+        return False
+
+    if not command_exists('btt'):  # Included with blktrace
+        print_detailed('btt is not installed. Please install via \'sudo apt install blktrace\'')
+        return False
+
+    return True
+
+
+def command_exists(command: str) -> bool:
+    """Returns whether the given command exists on the system.
+
+    :param command: The command.
+    :return: Returns True if exists, else False.
+    """
+    rc = run_system_command('command -v %s' % command)
+
+    return rc == 0
+
+
+def get_schedulers(device: str) -> list:
+    """Returns a list of available schedulers for a given device.
+
+    :param device: The device.
+    :return: Returns a list of schedulers.
+    """
+    matches = Mem.re_device.findall(device)
+
+    if not matches:
+        return []
+
+    out, rc = run_command('cat /sys/block/%s/queue/scheduler' % matches[0])
+
+    if rc != 0:
+        return []
+
+    return out.replace('[', '').replace(']', '').split()
+
+
+def get_valid_schedulers(device: str, proposed_schedulers: list) -> list:
+    """Returns a list of schedulers that are valid for a given device and set of proposed schedulers.
+
+    :param device: The device.
+    :param proposed_schedulers: The proposed schedulers.
+    :return: Returns a list of schedulers.
+    """
+    valid_schedulers = []
+
+    available_schedulers = set(get_schedulers(device))
+
+    for scheduler in proposed_schedulers:
+        if scheduler in available_schedulers:
+            valid_schedulers.append(scheduler)
+
+    return valid_schedulers
+
+
+@ignore_exception(FileNotFoundError, False)
+@ignore_exception(TypeError, False)
+def is_block_device(device: str) -> bool:
+    """Returns whether the given device is a valid block device.
+
+    :param device: The device.
+    :return: Returns True if is a valid block device, else False.
+    """
+    info = os.stat(device)
+    return stat.S_ISBLK(info.st_mode)
+
+
+def is_rotational_device(device: str) -> bool:
+    """Returns whether the given device is a rotational device.
+
+    :param device: The device.
+    :return: Returns True if is a rotational device, else False.
+    """
+    matches = Mem.re_device.findall(device)
+
+    if not matches:
+        return False
+
+    out, rc = run_command('cat /sys/block/%s/queue/rotational' % matches[0])
+
+    if rc != 0:
+        return False
+
+    return int(out) == 1
+
+
+def run_command(command: str, inp: str='') -> (str, int):
+    """Runs a command via subprocess communication.
+
+    :param command: The command.
+    :param inp: (OPTIONAL) Command input.
+    :return: A tuple containing (the output, the return code).
+    """
+    args = shlex.split(command)
+
+    try:
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                             preexec_fn=os.setsid)
+
+        out, err = p.communicate(inp)
+
+        rc = p.returncode
+
+        if err:
+            print_detailed(err.decode('utf-8'))
+
+        return out.decode('utf-8'), rc
+    except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
+        print_detailed(err)
+        return None, None
 
 
 def run_parallel_commands(commands: list, max_concurrent: int=multiprocessing.cpu_count(), abort_on_failure: bool=True) -> [(str, int)]:
@@ -191,32 +791,6 @@ def run_parallel_commands(commands: list, max_concurrent: int=multiprocessing.cp
     return None
 
 
-def run_command(command: str, inp: str='') -> (str, int):
-    """Runs a command via subprocess communication.
-
-    :param command: The command.
-    :param inp: (OPTIONAL) Command input.
-    :return: A tuple containing (the output, the return code).
-    """
-    args = shlex.split(command)
-
-    try:
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
-                             preexec_fn=os.setsid)
-
-        out, err = p.communicate(inp)
-
-        rc = p.returncode
-
-        if err:
-            print_detailed(err.decode('utf-8'))
-
-        return out.decode('utf-8'), rc
-    except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
-        print_detailed(err)
-        return None, None
-
-
 def run_system_command(command: str, silence: bool=True) -> int:
     """Runs a system command.
 
@@ -229,305 +803,33 @@ def run_system_command(command: str, silence: bool=True) -> int:
         command = '%s >/dev/null 2>&1' % command
     rc = os.system(command)
     return rc
-
-
-def try_split(s: str, delimiter) -> list:
-    """Tries to split a string by the given delimiter(s).
-
-    :param s: The string to split.
-    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
-    :return: Returns the string split into a list.
-    """
-    if isinstance(delimiter, tuple):
-        for d in delimiter:
-            if d in s:
-                return s.split(d)
-    elif delimiter in s:
-        return s.split(delimiter)
-
-    return [s]
-
-
-def get_failed_processes(processes: set) -> set:
-    """Returns the processes which are failed.
-
-    :param processes: The processes.
-    :return: A set of failed processes.
-    """
-    failed_processes = set()
-
-    for process in processes:
-        rc = process.poll()
-
-        if rc is not None:  # Done processing
-            if rc != 0:  # Return code other than 0 indicates error
-                failed_processes.add(process)
-
-    return failed_processes
-
-
-def get_finished_processes(processes: set) -> set:
-    """Returns the processes which are finished.
-
-    :param processes: The processes.
-    :return: A set of finished processes.
-    """
-    finished_processes = set()
-
-    for process in processes:
-        rc = process.poll()
-
-        if rc is not None:  # Done processing
-            finished_processes.add(process)
-
-    return finished_processes
-
-
-def kill_processes(processes: set):
-    """Kills the processes.
-
-    :param processes: The processes.
-    """
-    for process in processes:
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-
-
-def print_processes(processes: set):
-    """Prints the each processes's output.
-
-    :param processes: The processes.
-    """
-    for process in processes:
-        out, err = process.communicate()
-        if err:
-            print_detailed(err.decode('utf-8'))
-        if out:
-            print_detailed(out.decode('utf-8'))
-
 # endregion
 
 
-# region command-line
-def usage():
-    """Displays command-line information."""
-    name = os.path.basename(__file__)
-    print('%s %s' % (name, __version__))
-    print('Usage: %s -d <dev> -r <runtime> [-s <sched>] [-w <workload>] [-l] [-v]' % name)
-    print('Command Line Arguments:')
-    print('-d <dev>          : The device to use (e.g. /dev/sda). Multiple devices can be given to run in sequence')
-    print('                    (e.g. /dev/sda,/dev/sdb).')
-    print('-r <runtime>      : The runtime (seconds) for running the traces.')
-    print('-s <sched>        : (OPTIONAL) The I/O scheduler to use (e.g. noop). Multiple schedulers can be given to')
-    print('                    run in sequence (e.g. cfq,noop). Defaults to cfq, deadline, and noop for HDDs and SSDs.')
-    print('                    NVMe drives don\'t use a scheduler, but use blkmq instead.')
-    print('-w <workload>     : (OPTIONAL) The workload to use (e.g rw). Multiple workloads can be given to run in')
-    print('                    sequence (e.g. rw,sw). Four workloads are available: rr (random read),')
-    print('                    rw (random write), sr (sequential read), sw (sequential write). Defaults to all four.')
-    print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
-    print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
+def main(argv: list):
+    # Set logging as early as possible
+    if '-l' in argv:
+        logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
 
-
-def parse_args(argv: list) -> bool:
-    """Parses the supplied arguments and persists in memory.
-
-    :param argv: A list of arguments.
-    :return: Returns a boolean as True if parsed correctly, otherwise False.
-    """
-    try:
-        opts, args = getopt(argv, 'hld:r:s:v')
-
-        for opt, arg in opts:
-            if opt == '-d':
-                Mem.devices.extend(try_split(arg, ','))
-            elif opt == '-h':
-                return False
-            elif opt == '-l':
-                Mem.log = True
-            elif opt == '-r':
-                Mem.runtime = ignore_exception(ValueError, 0)(int)(arg)
-            elif opt == '-s':
-                Mem.schedulers.extend(try_split(arg, ','))
-            elif opt == '-v':
-                Mem.verbose = True
-            elif opt == '-w':
-                Mem.workloads.extend(try_split(arg, ','))
-        return True
-    except GetoptError as err:
-        print_verbose(err)
-        return False
-
-
-def check_args() -> bool:
-    """Validates that the minimum supplied arguments are met, and are valid.
-
-    :return: Returns a boolean as True if requirements met, otherwise False.
-    """
-    # Check devices
-    if not Mem.devices:
-        print_detailed('No devices given. Specify a device via -d <dev>.')
-        return False
-
-    for device in Mem.devices:
-        if not is_block_device(device):
-            print_detailed('The device %s is not a valid block device.' % device)
-            return False
-
-    # Check runtime
-    if not Mem.runtime:
-        print_detailed('A runtime (seconds) must be given. Specify a runtime via -r <runtime>.')
-        return False
-
-    # Check schedulers
-    if not Mem.schedulers:  # Use defaults if none specified
-        Mem.schedulers = Mem.def_schedulers
-
-    # Validates schedulers against all devices, HDDs and SSDs should allow all provided schedulers.
-    # TODO: Validate whether it is appropriate to force this restriction
-    for device in Mem.devices:
-        if is_nvme(device):
-            continue
-
-        schedulers = get_schedulers(device)
-
-        for scheduler in Mem.schedulers:
-            if scheduler not in schedulers:
-                print_detailed('Invalid scheduler %s specified for device %s' % (scheduler, device))
-                return False
-
-    # Check workloads
-    if not Mem.workloads:  # Use defaults if none specified
-        Mem.workloads = Mem.def_workloads
-
-    for workload in Mem.workloads:
-        if workload not in Mem.def_workloads:
-            print_detailed('Invalid workload %s specified.' % workload)
-            return False
-
-    return True
-
-
-def check_commands() -> bool:
-    """Validates whether the required commands exists on the system.
-
-    :return: Returns True if commmands exists, else False.
-    """
-    if not command_exists('blktrace'):
-        print_detailed('blktrace is not installed. Please install via \'sudo apt install blktrace\'')
-        return False
-
-    if not command_exists('blkparse'):  # Included with blktrace
-        print_detailed('blkparse is not installed. Please install via \'sudo apt install blktrace\'')
-        return False
-
-    if not command_exists('btt'):  # Included with blktrace
-        print_detailed('btt is not installed. Please install via \'sudo apt install blktrace\'')
-        return False
-
-    if not command_exists('fio'):
-        print_detailed('fio is not installed. Please install via \'sudo apt install fio\'')
-        return False
-
-    return True
-# endregion
-
-
-# region commands
-def command_exists(command: str) -> bool:
-    """Returns whether the given command exists on the system.
-
-    :param command: The command.
-    :return: Returns True if exists, else False.
-    """
-    rc = run_system_command('command -v %s' % command)
-
-    return rc == 0
-
-
-def get_schedulers(device: str) -> list:
-    """Returns a list of available schedulers for a given device.
-
-    :param device: The device.
-    :return: Returns a list of schedulers.
-    """
-    matches = Mem.re_device.findall(device)
-
-    if not matches:
-        return []
-
-    out, rc = run_command('cat /sys/block/%s/queue/scheduler' % matches[0])
-
-    if rc != 0:
-        return []
-
-    return out.replace('[', '').replace(']', '').split()
-
-
-@ignore_exception(FileNotFoundError, False)
-@ignore_exception(TypeError, False)
-def is_block_device(device: str) -> bool:
-    """Returns whether the given device is a valid block device.
-
-    :param device: The device.
-    :return: Returns True if is a valid block device, else False.
-    """
-    info = os.stat(device)
-    return stat.S_ISBLK(info.st_mode)
-
-
-def is_nvme(device: str) -> bool:
-    """Returns whether the given device is an NVMe device.
-
-    :param device: The device.
-    :return: Returns True if is an NVMe device, else False.
-    """
-    matches = Mem.re_device.findall(device)
-
-    if not matches:
-        return False
-
-    out, rc = run_command('cat /sys/block/%s/queue/scheduler' % matches[0])
-
-    if rc != 0:
-        return False
-
-    return out == 'none'
-
-
-def is_rotational_device(device: str) -> bool:
-    """Returns whether the given device is a rotational device.
-
-    :param device: The device.
-    :return: Returns True if is a rotational device, else False.
-    """
-    matches = Mem.re_device.findall(device)
-
-    if not matches:
-        return False
-
-    out, rc = run_command('cat /sys/block/%s/queue/rotational' % matches[0])
-
-    if rc != 0:
-        return False
-
-    return int(out) == 1
-# endregion
-
-
-def main(argv):
     # Validate os
     ps = platform.system()
     if ps != 'Linux':
+        print_detailed('OS is %s, must be Linux' % ps)
         sys.exit('OS is %s, must be Linux.' % ps)
 
-    # Validate arguments
-    if not parse_args(argv):
+    if len(argv) == 0:
         usage()
         sys.exit(1)
 
-    if Mem.log:
-        logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
+    # Validate settings
+    if not parse_config_file(argv[0]):
+        sys.exit(1)
 
-    if not check_args():
+    if not validate_jobs():
+        sys.exit(1)
+
+    # Validate arguments
+    if not parse_args(argv[1:]):
         usage()
         sys.exit(1)
 
