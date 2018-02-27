@@ -70,7 +70,13 @@ class Mem:
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
 
         # Regex
+        self.re_btt_d2c = re.compile(r'D2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
+        self.re_btt_q2c = re.compile(r'Q2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_device = re.compile(r'/dev/(.*)')
+        self.re_fio_clat = re.compile(
+            r'clat \(usec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
+        self.re_fio_slat = re.compile(
+            r'slat \(usec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
 
         # Validity
         self.valid_global_settings = {'command', 'delay', 'device', 'schedulers', 'repetition', 'runtime', 'workload'}
@@ -964,7 +970,31 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
     return True
 
 
-def gather_metrics(blktrace_out: str, blkparse_out: str, btt_out: str, workload_out: str, workload: str):
+def gather_workload_metrics(workload_out: str, workload: str) -> dict:
+    """Parses workload outputs and returns relevant metrics.
+
+    :param workload_out: The workload output.
+    :param workload: The workload.
+    :return: A dictionary of metrics and their values.
+    """
+    ret = dict()
+    if workload == 'fio':
+        clat = Mem.re_fio_clat.findall(workload_out)
+
+        if clat:
+            ret['clat'] = float(clat[0])
+
+        slat = Mem.re_fio_slat.findall(workload_out)
+
+        if slat:
+            ret['slat'] = float(slat[0])
+    else:
+        print_detailed('Unable to interpret workload %s' % workload)
+
+    return ret
+
+
+def gather_metrics(blktrace_out: str, blkparse_out: str, btt_out: str, workload_out: str, workload: str) -> dict:
     """Parses command outputs and returns relevant metrics.
 
     :param blktrace_out: The blktrace command output.
@@ -974,8 +1004,23 @@ def gather_metrics(blktrace_out: str, blkparse_out: str, btt_out: str, workload_
     :param workload: The workload.
     :return: A dictionary of metrics and their values.
     """
-    # TODO: Implement metrics grabbing
-    return None
+    metrics = dict()
+
+    d2c = Mem.re_btt_d2c.findall(btt_out)
+
+    if d2c:
+        metrics['d2c'] = float(d2c[0])
+
+    q2c = Mem.re_btt_q2c.findall(btt_out)
+
+    if q2c:
+        metrics['q2c'] = float(q2c[0])
+
+    workload_metrics = gather_workload_metrics(workload_out, workload)
+
+    metrics = {**metrics, **workload_metrics}
+
+    return metrics
 
 
 def change_scheduler(scheduler: str, device: str):
