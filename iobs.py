@@ -73,9 +73,13 @@ class Mem:
         self.re_btt_d2c = re.compile(r'D2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_btt_q2c = re.compile(r'Q2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_device = re.compile(r'/dev/(.*)')
-        self.re_fio_clat = re.compile(
+        self.re_fio_clat_msec = re.compile(
+            r'clat \(msec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
+        self.re_fio_clat_usec = re.compile(
             r'clat \(usec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
-        self.re_fio_slat = re.compile(
+        self.re_fio_slat_msec = re.compile(
+            r'slat \(msec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
+        self.re_fio_slat_usec = re.compile(
             r'slat \(usec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
 
         # Validity
@@ -308,6 +312,102 @@ class Job:
             invalid_props.append('workload')
 
         return invalid_props
+
+
+class Metrics:
+    """A group of metrics for a particular workload."""
+
+    def __init__(self, workload: str):
+        self.workload: str = workload
+        self._metrics: list = []
+
+    def add_metrics(self, metrics: dict):
+        """Adds new metrics.
+
+        :param metrics: The metrics. Expects mapping of metric name to metric value (int or float)."""
+        self._metrics.append(metrics)
+
+    def average_metrics(self) -> dict:
+        """Averages the metrics into a new dictionary.
+
+        :return: The averaged metrics.
+        """
+        averaged_metrics = dict()  # The averaged metrics
+        metric_frequency = dict()  # The frequency of each metric
+
+        # Sums the metrics then divides each by their frequency
+        for metric in self._metrics:
+            for key, value in metric.items():
+                metric_frequency.setdefault(key, 0)
+                metric_frequency[key] += 1
+
+                averaged_metrics.setdefault(key, 0)
+                averaged_metrics[key] += value
+
+        for key in averaged_metrics:
+            averaged_metrics[key] = averaged_metrics[key] / metric_frequency[key]
+
+        return averaged_metrics
+
+    @staticmethod
+    def gather_workload_metrics(workload_out: str, workload: str) -> dict:
+        """Parses workload outputs and returns relevant metrics.
+
+        :param workload_out: The workload output.
+        :param workload: The workload.
+        :return: A dictionary of metrics and their values.
+        """
+        ret = dict()
+        if workload == 'fio':
+            # fio can give msec or usec output, check for whichever is found
+            clat = Mem.re_fio_clat_msec.findall(workload_out)
+
+            if clat:
+                ret['clat'] = float(clat[0]) * 1e-3
+            else:
+                clat = Mem.re_fio_clat_usec.findall(workload_out)
+                ret['clat'] = float(clat[0]) * 1e-6
+
+            slat = Mem.re_fio_slat_msec.findall(workload_out)
+
+            if slat:
+                ret['slat'] = float(slat[0]) * 1e-3
+            else:
+                slat = Mem.re_fio_slat_usec.findall(workload_out)
+                ret['slat'] = float(slat[0]) * 1e-6
+        else:
+            print_detailed('Unable to interpret workload %s' % workload)
+
+        return ret
+
+    @staticmethod
+    def gather_metrics(blktrace_out: str, blkparse_out: str, btt_out: str, workload_out: str, workload: str) -> dict:
+        """Parses command outputs and returns relevant metrics.
+
+        :param blktrace_out: The blktrace command output.
+        :param blkparse_out: The blkparse command output.
+        :param btt_out: The btt command output.
+        :param workload_out: The workload output.
+        :param workload: The workload.
+        :return: A dictionary of metrics and their values.
+        """
+        metrics = dict()
+
+        d2c = Mem.re_btt_d2c.findall(btt_out)
+
+        if d2c:
+            metrics['d2c'] = float(d2c[0])
+
+        q2c = Mem.re_btt_q2c.findall(btt_out)
+
+        if q2c:
+            metrics['q2c'] = float(q2c[0])
+
+        workload_metrics = Metrics.gather_workload_metrics(workload_out, workload)
+
+        metrics = {**metrics, **workload_metrics}
+
+        return metrics
 
 
 # region utils
@@ -913,12 +1013,14 @@ def execute_job(job: Job) -> bool:
             print_detailed('Unable to change scheduler %s for device %s' % (scheduler, job.device))
             return False
 
-        execute_workload(job.repetition, job.workload, job.delay, job.device, scheduler, job.runtime, job.command)
+        metrics = execute_workload(job.repetition, job.workload, job.delay, job.device, scheduler, job.runtime, job.command)
+
+        # TODO: Print metrics or something
 
     return True
 
 
-def execute_workload(repetition: int, workload: str, delay: int, device: str, scheduler: str, runtime: int, command: str) -> bool:
+def execute_workload(repetition: int, workload: str, delay: int, device: str, scheduler: str, runtime: int, command: str):
     """Executes a workload.
 
     :param repetition: The number of times to repeat the workload.
@@ -928,8 +1030,10 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
     :param scheduler: The schedulers.
     :param runtime: The runtime.
     :param command: The command.
-    :return: Returns True if successful, else False.
+    :return: Returns a dictionary of metrics if successful, else None.
     """
+    metrics = Metrics(workload)
+
     # Repeat job multiple times
     for i in range(repetition):
         device_short = Mem.re_device.findall(device)[0]
@@ -942,7 +1046,7 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
         # Error running commands
         if out is None:
             print_detailed('Error running commands')
-            return False
+            return None
 
         blktrace_out, _ = out['blktrace']
         workload_out, _ = out[workload]
@@ -963,64 +1067,10 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
         dmm = get_device_major_minor(device)
         cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
 
-        metrics = gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, workload)
+        m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, workload)
+        metrics.add_metrics(m)
 
-        # TODO: Finish process
-        # Should most likely include an averaging function for multiple repetition across metrics
-    return True
-
-
-def gather_workload_metrics(workload_out: str, workload: str) -> dict:
-    """Parses workload outputs and returns relevant metrics.
-
-    :param workload_out: The workload output.
-    :param workload: The workload.
-    :return: A dictionary of metrics and their values.
-    """
-    ret = dict()
-    if workload == 'fio':
-        clat = Mem.re_fio_clat.findall(workload_out)
-
-        if clat:
-            ret['clat'] = float(clat[0])
-
-        slat = Mem.re_fio_slat.findall(workload_out)
-
-        if slat:
-            ret['slat'] = float(slat[0])
-    else:
-        print_detailed('Unable to interpret workload %s' % workload)
-
-    return ret
-
-
-def gather_metrics(blktrace_out: str, blkparse_out: str, btt_out: str, workload_out: str, workload: str) -> dict:
-    """Parses command outputs and returns relevant metrics.
-
-    :param blktrace_out: The blktrace command output.
-    :param blkparse_out: The blkparse command output.
-    :param btt_out: The btt command output.
-    :param workload_out: The workload output.
-    :param workload: The workload.
-    :return: A dictionary of metrics and their values.
-    """
-    metrics = dict()
-
-    d2c = Mem.re_btt_d2c.findall(btt_out)
-
-    if d2c:
-        metrics['d2c'] = float(d2c[0])
-
-    q2c = Mem.re_btt_q2c.findall(btt_out)
-
-    if q2c:
-        metrics['q2c'] = float(q2c[0])
-
-    workload_metrics = gather_workload_metrics(workload_out, workload)
-
-    metrics = {**metrics, **workload_metrics}
-
-    return metrics
+    return metrics.average_metrics()
 
 
 def change_scheduler(scheduler: str, device: str):
