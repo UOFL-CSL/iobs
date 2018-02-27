@@ -35,6 +35,9 @@ import sys
 import time
 
 
+# TODO: Code needs refactoring for a more OO approach.
+
+
 class Mem:
     """A simple data-store for persisting and keeping track of global data."""
 
@@ -43,6 +46,7 @@ class Mem:
         self.GLOBAL_HEADER = 'globals'
 
         # Settings
+        self.cleanup: bool = False
         self.config_file: str = None
         self.continue_on_failure: bool = False
         self.jobs: list = []
@@ -51,18 +55,24 @@ class Mem:
 
         # Global Job Settings
         self._command: str = None
-        self._devices: set = None
+        self._delay: int = 0
+        self._device: str = None
         self._repetition: int = 1
         self._runtime: int = None
         self._schedulers: set = None
         self._workload: str = None
 
+        # Formatters
+        self.format_blktrace = 'blktrace -d %s -o %s -w %s'  # device, file prefix, runtime
+        self.format_blkparse = 'blkparse -i %s.blktrace.* -d %s.blkparse.bin'  # file prefix, file prefix
+        self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
+
         # Regex
         self.re_device = re.compile(r'/dev/(.*)')
 
         # Validity
-        self.valid_global_settings = {'command', 'devices', 'schedulers', 'repetition', 'runtime', 'workload'}
-        self.valid_job_settings = {'command', 'devices', 'schedulers', 'repetition', 'runtime', 'workload'}
+        self.valid_global_settings = {'command', 'delay', 'device', 'schedulers', 'repetition', 'runtime', 'workload'}
+        self.valid_job_settings = {'command', 'delay', 'device', 'schedulers', 'repetition', 'runtime', 'workload'}
         self.valid_workloads = {'fio'}
 
     @property
@@ -74,12 +84,25 @@ class Mem:
         self._command = value
 
     @property
-    def devices(self) -> set:
-        return self._devices
+    def delay(self) -> int:
+        return self._delay
 
-    @devices.setter
-    def devices(self, value: str):
-        self._devices = set(try_split(value, ','))
+    @delay.setter
+    def delay(self, value: int):
+        conv_value = ignore_exception(ValueError, -1)(int)(value)
+
+        if conv_value < 1:
+            raise ValueError('Delay given is < 0: %s' % value)
+
+        self._delay = value
+
+    @property
+    def device(self) -> str:
+        return self._device
+
+    @device.setter
+    def device(self, value: str):
+        self._device = value
 
     @property
     def repetition(self) -> int:
@@ -134,7 +157,8 @@ class Job:
     def __init__(self, name: str):
         self._name: str = name
         self._command: str = None
-        self._devices: set = None
+        self._delay: int = None
+        self._device: str = None
         self._repetition: int = None
         self._runtime: int = None
         self._schedulers: set = None
@@ -153,12 +177,25 @@ class Job:
         self._command = value
 
     @property
-    def devices(self) -> set:
-        return self._devices
+    def delay(self) -> int:
+        return self._delay
 
-    @devices.setter
-    def devices(self, value):
-        self._devices = set(try_split(value, ','))
+    @delay.setter
+    def delay(self, value: int):
+        conv_value = ignore_exception(ValueError, -1)(int)(value)
+
+        if conv_value < 1:
+            raise ValueError('Delay given is < 0: %s' % value)
+
+        self._delay = conv_value
+
+    @property
+    def device(self) -> str:
+        return self._device
+
+    @device.setter
+    def device(self, value):
+        self._device = value
 
     @property
     def repetition(self) -> int:
@@ -207,8 +244,14 @@ class Job:
 
         :param o: The object.
         """
-        if self._devices is None:
-            self._devices = ignore_exception(AttributeError)(getattr)(o, 'devices')
+        if self._delay is None:
+            self._delay = ignore_exception(AttributeError)(getattr)(o, 'delay')
+
+        if self._device is None:
+            self._device = ignore_exception(AttributeError)(getattr)(o, 'device')
+
+        if self._repetition is None:
+            self._repetition = ignore_exception(AttributeError)(getattr)(o, 'repetition')
 
         if self._runtime is None:
             self._runtime = ignore_exception(AttributeError)(getattr)(o, 'runtime')
@@ -224,7 +267,9 @@ class Job:
 
         :return: Returns True if valid, else False.
         """
-        return self._devices is not None and \
+        return self._delay is not None and \
+            self._device is not None and \
+            self._repetition is not None and \
             self._runtime is not None and \
             self._schedulers is not None and \
             self._workload is not None
@@ -236,16 +281,22 @@ class Job:
         """
         invalid_props = []
 
-        if self._devices is not None:
-            invalid_props.append('devices')
+        if self._delay is None:
+            invalid_props.append('delay')
 
-        if self._runtime is not None:
+        if self._device is None:
+            invalid_props.append('device')
+
+        if self._repetition is None:
+            invalid_props.append('repetition')
+
+        if self._runtime is None:
             invalid_props.append('runtime')
 
-        if self._schedulers is not None:
+        if self._schedulers is None:
             invalid_props.append('schedulers')
 
-        if self._workload is not None:
+        if self._workload is None:
             invalid_props.append('workload')
 
         return invalid_props
@@ -277,6 +328,7 @@ def log(*args, **kwargs):
     :param kwargs: The keyword arguments.
     """
     if Mem.log:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
         logging.debug(*args, **kwargs)
 
 
@@ -287,6 +339,7 @@ def print_verbose(*args, **kwargs):
     :param kwargs: The keyword arguments.
     """
     if Mem.verbose:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
         print(*args, **kwargs)
 
 
@@ -320,17 +373,17 @@ def try_split(s: str, delimiter) -> list:
 def get_failed_processes(processes: set) -> set:
     """Returns the processes which are failed.
 
-    :param processes: The processes.
+    :param processes: A set of tuples of command names and processes.
     :return: A set of failed processes.
     """
     failed_processes = set()
 
-    for process in processes:
+    for command_name, process in processes:
         rc = process.poll()
 
         if rc is not None:  # Done processing
             if rc != 0:  # Return code other than 0 indicates error
-                failed_processes.add(process)
+                failed_processes.add((command_name, process))
 
     return failed_processes
 
@@ -338,31 +391,18 @@ def get_failed_processes(processes: set) -> set:
 def get_finished_processes(processes: set) -> set:
     """Returns the processes which are finished.
 
-    :param processes: The processes.
+    :param processes: A set of tuples of command names and processes.
     :return: A set of finished processes.
     """
     finished_processes = set()
 
-    for process in processes:
+    for command_name, process in processes:
         rc = process.poll()
 
         if rc is not None:  # Done processing
-            finished_processes.add(process)
+            finished_processes.add((command_name, process))
 
     return finished_processes
-
-
-def is_valid_devices(devices: list) -> bool:
-    """Returns whether the given devices are valid.
-
-    :param devices: The devices.
-    :return: Returns True if all are valid, else False.
-    """
-    for device in devices:
-        if not is_block_device:
-            return False
-
-    return True
 
 
 def is_valid_setting(setting: str, header: str) -> bool:
@@ -400,23 +440,23 @@ def is_valid_workload(workload: str) -> bool:
 def kill_processes(processes: set):
     """Kills the processes.
 
-    :param processes: The processes.
+    :param processes: A set of tuples of command names and processes.
     """
-    for process in processes:
+    for command_name, process in processes:
         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
 
 
 def print_processes(processes: set):
     """Prints the each processes's output.
 
-    :param processes: The processes.
+    :param processes: A set of tuples of command names and processes.
     """
-    for process in processes:
+    for command_name, process in processes:
         out, err = process.communicate()
-        if err:
-            print_detailed(err.decode('utf-8'))
         if out:
             print_detailed(out.decode('utf-8'))
+        if err:
+            print_detailed(err.decode('utf-8'))
 
 
 def validate_jobs() -> bool:
@@ -449,8 +489,8 @@ def validate_jobs() -> bool:
             else:
                 return False
 
-        if not is_valid_devices(job.devices):
-            print_detailed('The devices %s are not valid block devices.' % job.devices)
+        if not is_block_device(job.device):
+            print_detailed('The device %s is not a valid block device.' % job.device)
             if Mem.continue_on_failure:
                 Mem.jobs.pop(job_index)
                 continue
@@ -477,6 +517,7 @@ def usage():
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
+    print('-x                : (OPTIONAL) Attempts to clean up intermediate files.')
 
 
 def parse_args(argv: list) -> bool:
@@ -486,7 +527,7 @@ def parse_args(argv: list) -> bool:
     :return: Returns a boolean as True if parsed correctly, otherwise False.
     """
     try:
-        opts, args = getopt(argv, 'hlv')
+        opts, args = getopt(argv, 'hlvx')
 
         for opt, arg in opts:
             if opt == '-c':
@@ -497,6 +538,8 @@ def parse_args(argv: list) -> bool:
                 Mem.log = True
             elif opt == '-v':
                 Mem.verbose = True
+            elif opt == '-x':
+                Mem.cleanup = True
         return True
     except GetoptError as err:
         print_detailed(err)
@@ -578,8 +621,23 @@ def parse_config_file(file_path: str) -> bool:
 
 
 # region commands
-def check_commands() -> bool:
-    """Validates whether the required commands exists on the system.
+def cleanup_files(file):
+    """Removes the specified file, or files if a tuple of files is given.
+
+    :param file: A single file or a tuple of files to remove.
+    """
+    if not Mem.cleanup:  # Only cleanup if specified
+        return
+
+    if isinstance(file, tuple):
+        for f in file:
+            run_system_command('rm %s' % f)
+    else:
+        run_system_command('rm %s' % file)
+
+
+def check_trace_commands() -> bool:
+    """Validates whether the required tracing commands exists on the system.
 
     :return: Returns True if commands exists, else False.
     """
@@ -684,9 +742,9 @@ def run_command(command: str, inp: str='') -> (str, int):
     :param inp: (OPTIONAL) Command input.
     :return: A tuple containing (the output, the return code).
     """
-    args = shlex.split(command)
-
     try:
+        args = shlex.split(command)
+
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                              preexec_fn=os.setsid)
 
@@ -703,15 +761,18 @@ def run_command(command: str, inp: str='') -> (str, int):
         return None, None
 
 
-def run_parallel_commands(commands: list, max_concurrent: int=multiprocessing.cpu_count(), abort_on_failure: bool=True) -> [(str, int)]:
-    """Runs multiple commands in parallel via subprocess communication.
+def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing.cpu_count(),
+                          abort_on_failure: bool=True):
+    """Runs multiple commands in parallel via subprocess communication. Commands are run in order of delay, with their
+    respective delays considered (useful when commands like fio take time to generate a file before running).
 
     A single failed process results in the remaining being stopped.
 
-    :param commands: The commands.
+    :param command_map: A command mapping which contains a list of tuples containing (command name, command delay,
+        the command itself).
     :param max_concurrent: The maximum number of concurrent processes.
     :param abort_on_failure: Whether to abort if a single process failures, otherwise continues. Defaults to True.
-    :return: A list of tuples containing (the output, the return code).
+    :return: A dictionary where key = command name and value = tuple of (the output, the return code).
     """
 
     if max_concurrent < 1:
@@ -721,13 +782,23 @@ def run_parallel_commands(commands: list, max_concurrent: int=multiprocessing.cp
     processes = set()
     completed_processes = set()
 
-    for command in sorted(commands):
-        args = shlex.split(command)
+    last_delay = 0
+
+    for command_name, delay, command in sorted(command_map, key=lambda x: x[1]):
 
         try:
+            # Delay command execution based on specified delay
+            # Note: This isn't quite exact, due to timing issues and the concurrency limit
+            if delay > last_delay:
+                time.sleep(delay - last_delay)
+                last_delay = delay
+
+            args = shlex.split(command)
+
             p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                                  preexec_fn=os.setsid)
-            processes.add(p)
+
+            processes.add((command_name, p))
         except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
             print_detailed(err)
             if abort_on_failure:
@@ -767,10 +838,10 @@ def run_parallel_commands(commands: list, max_concurrent: int=multiprocessing.cp
                     kill_processes(processes)
                     return None
 
-        ret = []
+        ret = dict()
 
         # Grab outputs from completed processes
-        for process in completed_processes:
+        for command_name, process in completed_processes:
             out, err = process.communicate()
 
             rc = process.returncode
@@ -778,7 +849,7 @@ def run_parallel_commands(commands: list, max_concurrent: int=multiprocessing.cp
             if err:
                 print_detailed(err.decode('utf-8'))
 
-            ret.append((out.decode('utf-8'), rc))
+            ret[command_name] = (out.decode('utf-8'), rc)
 
         return ret
 
@@ -806,16 +877,128 @@ def run_system_command(command: str, silence: bool=True) -> int:
 # endregion
 
 
+def process_jobs():
+    """Executes each job."""
+    for job in Mem.jobs:
+        if not execute_job(job):
+            if not Mem.continue_on_failure:
+                return
+
+
+def execute_job(job: Job) -> bool:
+    """Executes a single job.
+
+    :param job: The job.
+    :return: Returns True if successful, else False.
+    """
+    for scheduler in job.schedulers:
+
+        if not change_scheduler(scheduler, job.device):
+            print_detailed('Unable to change scheduler %s for device %s' % (scheduler, job.device))
+            return False
+
+        execute_workload(job.repetition, job.workload, job.delay, job.device, scheduler, job.runtime, job.command)
+
+    return True
+
+
+def execute_workload(repetition: int, workload: str, delay: int, device: str, scheduler: str, runtime: int, command: str) -> bool:
+    """Executes a workload.
+
+    :param repetition: The number of times to repeat the workload.
+    :param workload: The workload.
+    :param delay: The delay.
+    :param device: The device.
+    :param scheduler: The schedulers.
+    :param runtime: The runtime.
+    :param command: The command.
+    :return: Returns True if successful, else False.
+    """
+    # Repeat job multiple times
+    for i in range(repetition):
+        device_short = Mem.re_device.findall(device)[0]
+
+        # Run workload along with blktrace
+        blktrace = Mem.format_blktrace % (device, device_short, runtime)
+
+        out = run_parallel_commands([('blktrace', 0, blktrace), (workload, delay, command)])
+
+        # Error running commands
+        if out is None:
+            print_detailed('Error running commands')
+            return False
+
+        blktrace_out, _ = out['blktrace']
+        workload_out, _ = out[workload]
+
+        # Run blkparse
+        blkparse = Mem.format_blkparse % (device_short, device_short)
+
+        blkparse_out, _ = run_command(blkparse)
+
+        # Run btt
+        btt = Mem.format_btt % device_short
+
+        btt_out, _ = run_command(btt)
+
+        # Cleanup intermediate files
+        cleanup_files('sda.blktrace.*')
+        cleanup_files('sda.blkparse.*')
+
+        metrics = gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, workload)
+
+        # TODO: Finish process
+        # Should most likely include an averaging function for multiple repetition across metrics
+    return True
+
+
+def gather_metrics(blktrace_out: str, blkparse_out: str, btt_out: str, workload_out: str, workload: str):
+    """Parses command outputs and returns relevant metrics.
+
+    :param blktrace_out: The blktrace command output.
+    :param blkparse_out: The blkparse command output.
+    :param btt_out: The btt command output.
+    :param workload_out: The workload output.
+    :param workload: The workload.
+    :return: A dictionary of metrics and their values.
+    """
+    # TODO: Implement metrics grabbing
+    return None
+
+
+def change_scheduler(scheduler: str, device: str):
+    """Changes the I/O scheduler for the given device.
+
+    :param scheduler: The I/O scheduler.
+    :param device: The device.
+    :return: Returns True if successful, else False.
+    """
+    command = 'bash -c "echo %s > /sys/block/%s/queue/scheduler"' % (scheduler, Mem.re_device.findall(device)[0])
+
+    out, rc = run_command(command)
+
+    return rc == 0
+
+
 def main(argv: list):
     # Set logging as early as possible
     if '-l' in argv:
         logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
+        Mem.log = True
+
+    if '-v' in argv:
+        Mem.verbose = True
+
+    # Validate privileges
+    if os.getuid() != 0:
+        print_detailed('Script must be run with administrative privileges. Try sudo %s' % __file__)
+        sys.exit(1)
 
     # Validate os
     ps = platform.system()
     if ps != 'Linux':
         print_detailed('OS is %s, must be Linux' % ps)
-        sys.exit('OS is %s, must be Linux.' % ps)
+        sys.exit(1)
 
     if len(argv) == 0:
         usage()
@@ -833,8 +1016,11 @@ def main(argv: list):
         usage()
         sys.exit(1)
 
-    if not check_commands():
+    if not check_trace_commands():
         sys.exit(1)
+
+    # Beginning running jobs
+    process_jobs()
 
 
 if __name__ == '__main__':

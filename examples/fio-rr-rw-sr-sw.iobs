@@ -1,0 +1,10 @@
+[globals]
+device=/dev/sda
+runtime=10
+schedulers=noop,deadline
+
+# FIO Workloads
+[fio-random-read]
+delay=1
+workload=fio
+command=fio examples/fio/fio-seq-read.job
