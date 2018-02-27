@@ -621,19 +621,27 @@ def parse_config_file(file_path: str) -> bool:
 
 
 # region commands
-def cleanup_files(file):
-    """Removes the specified file, or files if a tuple of files is given.
+def cleanup_files(*files):
+    """Removes the specified file, or files if multiple are given.
 
-    :param file: A single file or a tuple of files to remove.
+    :param files: Files to remove..
     """
     if not Mem.cleanup:  # Only cleanup if specified
         return
 
-    if isinstance(file, tuple):
-        for f in file:
-            run_system_command('rm %s' % f)
-    else:
-        run_system_command('rm %s' % file)
+    for file in files:
+        run_system_command('rm -f %s' % file)
+
+
+def get_device_major_minor(device: str) -> str:
+    """Returns a string of the major, minor of a given device.
+
+    :param device: The device.
+    :return: A string of major,minor.
+    """
+    out, _ = run_command('stat -c \'%%t,%%T\' %s' % device)
+
+    return out if not out else out.strip()
 
 
 def check_trace_commands() -> bool:
@@ -942,8 +950,10 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
         btt_out, _ = run_command(btt)
 
         # Cleanup intermediate files
-        cleanup_files('sda.blktrace.*')
-        cleanup_files('sda.blkparse.*')
+        cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
+
+        dmm = get_device_major_minor(device)
+        cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
 
         metrics = gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, workload)
 
