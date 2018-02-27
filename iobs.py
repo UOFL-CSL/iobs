@@ -36,6 +36,8 @@ import time
 
 
 # TODO: Code needs refactoring for a more OO approach.
+# TODO: Add more logging around functions (specifically in the iobs.log file.
+# TODO: Reorganize methods in a more structured manner.
 
 
 class Mem:
@@ -993,7 +995,7 @@ def change_scheduler(scheduler: str, device: str):
 def main(argv: list):
     # Set logging as early as possible
     if '-l' in argv:
-        logging.basicConfig(filename='iobs.txt', level=logging.DEBUG, format='%(asctime)s - %(message)s')
+        logging.basicConfig(filename='iobs.log', level=logging.DEBUG, format='%(asctime)s - %(message)s')
         Mem.log = True
 
     if '-v' in argv:
