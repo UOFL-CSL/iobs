@@ -665,12 +665,26 @@ def parse_config_file(file_path: str) -> bool:
     if not os.path.isfile(Mem.config_file):
         sys.exit('File not found: %s' % Mem.config_file)
 
-    re_header = re.compile(r'\s*\[(.*)\]\s*(?:#.*)*')
+    re_header = re.compile(r'\s*\[(.*)\]\s*(?:.*)*')
 
     header = None
 
     with open(Mem.config_file, 'r') as file:
         for line in file:
+            # Comment
+            comment_index = line.find('#')
+
+            if comment_index != -1:
+                line = line[0:comment_index].strip()
+
+            comment_index = line.find(';')
+
+            if comment_index != -1:
+                line = line[0:comment_index].strip()
+
+            if not line.strip():
+                continue
+
             # Header
             header_match = re_header.fullmatch(line)
 
@@ -679,15 +693,6 @@ def parse_config_file(file_path: str) -> bool:
 
                 if header != Mem.GLOBAL_HEADER:
                     Mem.jobs.append(Job(header))
-                continue
-
-            # Comment
-            comment_index = line.find('#')
-
-            if comment_index != -1:
-                line = line[0:comment_index].strip()
-
-            if not line.strip():
                 continue
 
             # Setting
