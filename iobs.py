@@ -35,11 +35,10 @@ import sys
 import time
 
 
-# TODO: Code needs refactoring for a more OO approach.
 # TODO: Add more logging around functions (specifically in the iobs.log file.
-# TODO: Reorganize methods in a more structured manner.
+# TODO: Implement retry for specific commands (sometimes blktrace borks for unknown reasons)
 
-
+# region classes
 class Mem:
     """A simple data-store for persisting and keeping track of global data."""
 
@@ -157,7 +156,6 @@ class Mem:
     @workload.setter
     def workload(self, value: str):
         self._workload = value
-
 
 # Turns the class into a singleton (this is some sneaky stuff)
 Mem = Mem()
@@ -408,353 +406,21 @@ class Metrics:
         metrics = {**metrics, **workload_metrics}
 
         return metrics
-
-
-# region utils
-def ignore_exception(exception=Exception, default_val=None):
-    """A decorator function that ignores the exception raised, and instead returns a default value.
-
-    :param exception: The exception to catch.
-    :param default_val: The default value.
-    :return: The decorated function.
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except exception:
-                return default_val
-        return wrapper
-    return decorator
-
-
-def log(*args, **kwargs):
-    """Logs a message if logging is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    if Mem.log:
-        args = [a.strip() if isinstance(a, str) else a for a in args]
-        logging.debug(*args, **kwargs)
-
-
-def print_verbose(*args, **kwargs):
-    """Prints a message if verbose is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    if Mem.verbose:
-        args = [a.strip() if isinstance(a, str) else a for a in args]
-        print(*args, **kwargs)
-
-
-def print_detailed(*args, **kwargs):
-    """Prints a message if verbose is enabled, and logs if logging is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    log(*args, **kwargs)
-    print_verbose(*args, **kwargs)
-
-
-def try_split(s: str, delimiter) -> list:
-    """Tries to split a string by the given delimiter(s).
-
-    :param s: The string to split.
-    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
-    :return: Returns the string split into a list.
-    """
-    if isinstance(delimiter, tuple):
-        for d in delimiter:
-            if d in s:
-                return [i.strip() for i in s.split(d)]
-    elif delimiter in s:
-        return s.split(delimiter)
-
-    return [s]
-
-
-def get_failed_processes(processes: set) -> set:
-    """Returns the processes which are failed.
-
-    :param processes: A set of tuples of command names and processes.
-    :return: A set of failed processes.
-    """
-    failed_processes = set()
-
-    for command_name, process in processes:
-        rc = process.poll()
-
-        if rc is not None:  # Done processing
-            if rc != 0:  # Return code other than 0 indicates error
-                failed_processes.add((command_name, process))
-
-    return failed_processes
-
-
-def get_finished_processes(processes: set) -> set:
-    """Returns the processes which are finished.
-
-    :param processes: A set of tuples of command names and processes.
-    :return: A set of finished processes.
-    """
-    finished_processes = set()
-
-    for command_name, process in processes:
-        rc = process.poll()
-
-        if rc is not None:  # Done processing
-            finished_processes.add((command_name, process))
-
-    return finished_processes
-
-
-def is_valid_setting(setting: str, header: str) -> bool:
-    """Returns whether the config setting is valid.
-
-    :return: Returns True if setting is valid, else False.
-    """
-    if not header:
-        return False
-
-    if not setting:
-        return False
-
-    if header == Mem.GLOBAL_HEADER:
-        return setting in Mem.valid_global_settings
-    else:
-        return setting in Mem.valid_job_settings
-
-
-def is_valid_workload(workload: str) -> bool:
-    """Returns whether the given workload is valid.
-
-    :param workload: The workload.
-    :return: Returns True if valid, else False.
-    """
-    if workload not in Mem.valid_workloads:
-        return False
-
-    if not command_exists(workload):
-        return False
-
-    return True
-
-
-def kill_processes(processes: set):
-    """Kills the processes.
-
-    :param processes: A set of tuples of command names and processes.
-    """
-    for command_name, process in processes:
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-
-
-def print_processes(processes: set):
-    """Prints the each processes's output.
-
-    :param processes: A set of tuples of command names and processes.
-    """
-    for command_name, process in processes:
-        out, err = process.communicate()
-        if out:
-            print_detailed(out.decode('utf-8'))
-        if err:
-            print_detailed(err.decode('utf-8'))
-
-
-def validate_jobs() -> bool:
-    """Returns whether each job is valid.
-
-    :return: Returns True if all are valid, else False.
-    """
-    job_index = 0
-    while job_index < len(Mem.jobs):
-        job = Mem.jobs[job_index]
-
-        # Fill in missing settings from globals
-        job.fill_missing(Mem)
-
-        # Ensure job has required properties
-        if not job.is_valid():
-            ip = ', '.join(job.get_invalid_props())
-            print_detailed('Job %s is missing the required settings: %s' % (job.name, ip))
-            if Mem.continue_on_failure:
-                Mem.jobs.pop(job_index)
-                continue
-            else:
-                return False
-
-        if not is_valid_workload(job.workload):
-            print_detailed('%s is not installed. Please install the tool before use.' % job.workload)
-            if Mem.continue_on_failure:
-                Mem.jobs.pop(job_index)
-                continue
-            else:
-                return False
-
-        if not is_block_device(job.device):
-            print_detailed('The device %s is not a valid block device.' % job.device)
-            if Mem.continue_on_failure:
-                Mem.jobs.pop(job_index)
-                continue
-            else:
-                return False
-
-        # We'll allow schedulers to be defined that don't exist for every device
-        # So no checks here...
-
-        job_index += 1
-
-    return len(Mem.jobs) > 0  # At least 1 job required
 # endregion
-
-
-# region command-line
-def usage():
-    """Displays command-line information."""
-    name = os.path.basename(__file__)
-    print('%s %s' % (name, __version__))
-    print('Usage: %s <file> [-l] [-v]' % name)
-    print('Command Line Arguments:')
-    print('<file>            : The configuration file to use.')
-    print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
-    print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
-    print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
-    print('-x                : (OPTIONAL) Attempts to clean up intermediate files.')
-
-
-def parse_args(argv: list) -> bool:
-    """Parses the supplied arguments and persists in memory.
-
-    :param argv: A list of arguments.
-    :return: Returns a boolean as True if parsed correctly, otherwise False.
-    """
-    try:
-        opts, args = getopt(argv, 'hlvx')
-
-        for opt, arg in opts:
-            if opt == '-c':
-                Mem.continue_on_failure = True
-            elif opt == '-h':
-                return False
-            elif opt == '-l':
-                Mem.log = True
-            elif opt == '-v':
-                Mem.verbose = True
-            elif opt == '-x':
-                Mem.cleanup = True
-        return True
-    except GetoptError as err:
-        print_detailed(err)
-        return False
-
-
-def parse_config_file(file_path: str) -> bool:
-    """Parses the supplied file and persists data into memory.
-
-    :param file_path: The file.
-    :return: Returns True if settings are valid, else False.
-    """
-    Mem.config_file = file_path
-
-    if not os.path.isfile(Mem.config_file):
-        sys.exit('File not found: %s' % Mem.config_file)
-
-    re_header = re.compile(r'\s*\[(.*)\]\s*(?:.*)*')
-
-    header = None
-
-    with open(Mem.config_file, 'r') as file:
-        for line in file:
-            # Comment
-            comment_index = line.find('#')
-
-            if comment_index != -1:
-                line = line[0:comment_index].strip()
-
-            comment_index = line.find(';')
-
-            if comment_index != -1:
-                line = line[0:comment_index].strip()
-
-            if not line.strip():
-                continue
-
-            # Header
-            header_match = re_header.fullmatch(line)
-
-            if header_match:
-                header = line[header_match.regs[1][0]:header_match.regs[1][1]]
-
-                if header != Mem.GLOBAL_HEADER:
-                    Mem.jobs.append(Job(header))
-                continue
-
-            # Setting
-            line_split = line.split('=')
-
-            if len(line_split) != 2:  # Invalid syntax
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            name = line_split[0].strip()
-            value = line_split[1].strip()
-
-            if not name or not value:
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            if not is_valid_setting(name, header):
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            if not header:
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            if header == Mem.GLOBAL_HEADER:
-                try:
-                    setattr(Mem, name, value)
-                except ValueError:
-                    print_detailed('Invalid syntax in config file found: %s' % line)
-                    return False
-            else:
-                try:
-                    setattr(Mem.jobs[-1], name, value)
-                except ValueError:
-                    print_detailed('Invalid syntax in config file found: %s' % line)
-                    return False
-    return True
-# endregion
-
 
 # region commands
-def cleanup_files(*files):
-    """Removes the specified file, or files if multiple are given.
+def change_scheduler(scheduler: str, device: str):
+    """Changes the I/O scheduler for the given device.
 
-    :param files: Files to remove..
-    """
-    if not Mem.cleanup:  # Only cleanup if specified
-        return
-
-    for file in files:
-        run_system_command('rm -f %s' % file)
-
-
-def get_device_major_minor(device: str) -> str:
-    """Returns a string of the major, minor of a given device.
-
+    :param scheduler: The I/O scheduler.
     :param device: The device.
-    :return: A string of major,minor.
+    :return: Returns True if successful, else False.
     """
-    out, _ = run_command('stat -c \'%%t,%%T\' %s' % device)
+    command = 'bash -c "echo %s > /sys/block/%s/queue/scheduler"' % (scheduler, Mem.re_device.findall(device)[0])
 
-    return out if not out else out.strip()
+    out, rc = run_command(command)
+
+    return rc == 0
 
 
 def check_trace_commands() -> bool:
@@ -777,6 +443,18 @@ def check_trace_commands() -> bool:
     return True
 
 
+def cleanup_files(*files):
+    """Removes the specified file, or files if multiple are given.
+
+    :param files: Files to remove..
+    """
+    if not Mem.cleanup:  # Only cleanup if specified
+        return
+
+    for file in files:
+        run_system_command('rm -f %s' % file)
+
+
 def command_exists(command: str) -> bool:
     """Returns whether the given command exists on the system.
 
@@ -786,6 +464,17 @@ def command_exists(command: str) -> bool:
     rc = run_system_command('command -v %s' % command)
 
     return rc == 0
+
+
+def get_device_major_minor(device: str) -> str:
+    """Returns a string of the major, minor of a given device.
+
+    :param device: The device.
+    :return: A string of major,minor.
+    """
+    out, _ = run_command('stat -c \'%%t,%%T\' %s' % device)
+
+    return out if not out else out.strip()
 
 
 def get_schedulers(device: str) -> list:
@@ -825,6 +514,14 @@ def get_valid_schedulers(device: str, proposed_schedulers: list) -> list:
     return valid_schedulers
 
 
+def kill_processes(processes: set):
+    """Kills the processes.
+
+    :param processes: A set of tuples of command names and processes.
+    """
+    for command_name, process in processes:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+
 @ignore_exception(FileNotFoundError, False)
 @ignore_exception(TypeError, False)
 def is_block_device(device: str) -> bool:
@@ -854,6 +551,38 @@ def is_rotational_device(device: str) -> bool:
         return False
 
     return int(out) == 1
+
+
+def is_valid_setting(setting: str, header: str) -> bool:
+    """Returns whether the config setting is valid.
+
+    :return: Returns True if setting is valid, else False.
+    """
+    if not header:
+        return False
+
+    if not setting:
+        return False
+
+    if header == Mem.GLOBAL_HEADER:
+        return setting in Mem.valid_global_settings
+    else:
+        return setting in Mem.valid_job_settings
+
+
+def is_valid_workload(workload: str) -> bool:
+    """Returns whether the given workload is valid.
+
+    :param workload: The workload.
+    :return: Returns True if valid, else False.
+    """
+    if workload not in Mem.valid_workloads:
+        return False
+
+    if not command_exists(workload):
+        return False
+
+    return True
 
 
 def run_command(command: str, inp: str='') -> (str, int):
@@ -995,17 +724,173 @@ def run_system_command(command: str, silence: bool=True) -> int:
         command = '%s >/dev/null 2>&1' % command
     rc = os.system(command)
     return rc
+
+
+def validate_jobs() -> bool:
+    """Returns whether each job is valid.
+
+    :return: Returns True if all are valid, else False.
+    """
+    job_index = 0
+    while job_index < len(Mem.jobs):
+        job = Mem.jobs[job_index]
+
+        # Fill in missing settings from globals
+        job.fill_missing(Mem)
+
+        # Ensure job has required properties
+        if not job.is_valid():
+            ip = ', '.join(job.get_invalid_props())
+            print_detailed('Job %s is missing the required settings: %s' % (job.name, ip))
+            if Mem.continue_on_failure:
+                Mem.jobs.pop(job_index)
+                continue
+            else:
+                return False
+
+        if not is_valid_workload(job.workload):
+            print_detailed('%s is not installed. Please install the tool before use.' % job.workload)
+            if Mem.continue_on_failure:
+                Mem.jobs.pop(job_index)
+                continue
+            else:
+                return False
+
+        if not is_block_device(job.device):
+            print_detailed('The device %s is not a valid block device.' % job.device)
+            if Mem.continue_on_failure:
+                Mem.jobs.pop(job_index)
+                continue
+            else:
+                return False
+
+        # We'll allow schedulers to be defined that don't exist for every device
+        # So no checks here...
+
+        job_index += 1
+
+    return len(Mem.jobs) > 0  # At least 1 job required
 # endregion
 
+# region command-line
+def usage():
+    """Displays command-line information."""
+    name = os.path.basename(__file__)
+    print('%s %s' % (name, __version__))
+    print('Usage: %s <file> [-l] [-v]' % name)
+    print('Command Line Arguments:')
+    print('<file>            : The configuration file to use.')
+    print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
+    print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
+    print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
+    print('-x                : (OPTIONAL) Attempts to clean up intermediate files.')
 
-def process_jobs():
-    """Executes each job."""
-    for job in Mem.jobs:
-        if not execute_job(job):
-            if not Mem.continue_on_failure:
-                return
+
+def parse_args(argv: list) -> bool:
+    """Parses the supplied arguments and persists in memory.
+
+    :param argv: A list of arguments.
+    :return: Returns a boolean as True if parsed correctly, otherwise False.
+    """
+    try:
+        opts, args = getopt(argv, 'hlvx')
+
+        for opt, arg in opts:
+            if opt == '-c':
+                Mem.continue_on_failure = True
+            elif opt == '-h':
+                return False
+            elif opt == '-l':
+                Mem.log = True
+            elif opt == '-v':
+                Mem.verbose = True
+            elif opt == '-x':
+                Mem.cleanup = True
+        return True
+    except GetoptError as err:
+        print_detailed(err)
+        return False
 
 
+def parse_config_file(file_path: str) -> bool:
+    """Parses the supplied file and persists data into memory.
+
+    :param file_path: The file.
+    :return: Returns True if settings are valid, else False.
+    """
+    Mem.config_file = file_path
+
+    if not os.path.isfile(Mem.config_file):
+        sys.exit('File not found: %s' % Mem.config_file)
+
+    re_header = re.compile(r'\s*\[(.*)\]\s*(?:.*)*')
+
+    header = None
+
+    with open(Mem.config_file, 'r') as file:
+        for line in file:
+            # Comment
+            comment_index = line.find('#')
+
+            if comment_index != -1:
+                line = line[0:comment_index].strip()
+
+            comment_index = line.find(';')
+
+            if comment_index != -1:
+                line = line[0:comment_index].strip()
+
+            if not line.strip():
+                continue
+
+            # Header
+            header_match = re_header.fullmatch(line)
+
+            if header_match:
+                header = line[header_match.regs[1][0]:header_match.regs[1][1]]
+
+                if header != Mem.GLOBAL_HEADER:
+                    Mem.jobs.append(Job(header))
+                continue
+
+            # Setting
+            line_split = line.split('=')
+
+            if len(line_split) != 2:  # Invalid syntax
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            name = line_split[0].strip()
+            value = line_split[1].strip()
+
+            if not name or not value:
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            if not is_valid_setting(name, header):
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            if not header:
+                print_detailed('Invalid syntax in config file found: %s' % line)
+                return False
+
+            if header == Mem.GLOBAL_HEADER:
+                try:
+                    setattr(Mem, name, value)
+                except ValueError:
+                    print_detailed('Invalid syntax in config file found: %s' % line)
+                    return False
+            else:
+                try:
+                    setattr(Mem.jobs[-1], name, value)
+                except ValueError:
+                    print_detailed('Invalid syntax in config file found: %s' % line)
+                    return False
+    return True
+# endregion
+
+# region jobs
 def execute_job(job: Job) -> bool:
     """Executes a single job.
 
@@ -1078,19 +963,130 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
     return metrics.average_metrics()
 
 
-def change_scheduler(scheduler: str, device: str):
-    """Changes the I/O scheduler for the given device.
+def process_jobs():
+    """Executes each job."""
+    for job in Mem.jobs:
+        if not execute_job(job):
+            if not Mem.continue_on_failure:
+                return
+# endregion
 
-    :param scheduler: The I/O scheduler.
-    :param device: The device.
-    :return: Returns True if successful, else False.
+# region processes
+def get_failed_processes(processes: set) -> set:
+    """Returns the processes which are failed.
+
+    :param processes: A set of tuples of command names and processes.
+    :return: A set of failed processes.
     """
-    command = 'bash -c "echo %s > /sys/block/%s/queue/scheduler"' % (scheduler, Mem.re_device.findall(device)[0])
+    failed_processes = set()
 
-    out, rc = run_command(command)
+    for command_name, process in processes:
+        rc = process.poll()
 
-    return rc == 0
+        if rc is not None:  # Done processing
+            if rc != 0:  # Return code other than 0 indicates error
+                failed_processes.add((command_name, process))
 
+    return failed_processes
+
+
+def get_finished_processes(processes: set) -> set:
+    """Returns the processes which are finished.
+
+    :param processes: A set of tuples of command names and processes.
+    :return: A set of finished processes.
+    """
+    finished_processes = set()
+
+    for command_name, process in processes:
+        rc = process.poll()
+
+        if rc is not None:  # Done processing
+            finished_processes.add((command_name, process))
+
+    return finished_processes
+
+
+def print_processes(processes: set):
+    """Prints the each processes's output.
+
+    :param processes: A set of tuples of command names and processes.
+    """
+    for command_name, process in processes:
+        out, err = process.communicate()
+        if out:
+            print_detailed(out.decode('utf-8'))
+        if err:
+            print_detailed(err.decode('utf-8'))
+# endregion
+
+# region utils
+def ignore_exception(exception=Exception, default_val=None):
+    """A decorator function that ignores the exception raised, and instead returns a default value.
+
+    :param exception: The exception to catch.
+    :param default_val: The default value.
+    :return: The decorated function.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except exception:
+                return default_val
+        return wrapper
+    return decorator
+
+
+def log(*args, **kwargs):
+    """Logs a message if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    if Mem.log:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
+        logging.debug(*args, **kwargs)
+
+
+def print_detailed(*args, **kwargs):
+    """Prints a message if verbose is enabled, and logs if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    log(*args, **kwargs)
+    print_verbose(*args, **kwargs)
+
+
+def print_verbose(*args, **kwargs):
+    """Prints a message if verbose is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    if Mem.verbose:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
+        print(*args, **kwargs)
+
+
+def try_split(s: str, delimiter) -> list:
+    """Tries to split a string by the given delimiter(s).
+
+    :param s: The string to split.
+    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
+    :return: Returns the string split into a list.
+    """
+    if isinstance(delimiter, tuple):
+        for d in delimiter:
+            if d in s:
+                return [i.strip() for i in s.split(d)]
+    elif delimiter in s:
+        return s.split(delimiter)
+
+    return [s]
+# endregion
 
 def main(argv: list):
     # Set logging as early as possible
