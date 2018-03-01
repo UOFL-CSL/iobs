@@ -35,7 +35,6 @@ import sys
 import time
 
 
-# TODO: Add more logging around functions (specifically in the iobs.log file.
 # TODO: Implement retry for specific commands (sometimes blktrace borks for unknown reasons)
 
 # region classes
@@ -156,6 +155,7 @@ class Mem:
     @workload.setter
     def workload(self, value: str):
         self._workload = value
+
 
 # Turns the class into a singleton (this is some sneaky stuff)
 Mem = Mem()
@@ -408,7 +408,117 @@ class Metrics:
         return metrics
 # endregion
 
+
+# region utils
+def ignore_exception(exception=Exception, default_val=None):
+    """A decorator function that ignores the exception raised, and instead returns a default value.
+
+    :param exception: The exception to catch.
+    :param default_val: The default value.
+    :return: The decorated function.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except exception:
+                return default_val
+        return wrapper
+    return decorator
+
+
+def log_around(before_message:str=None, after_message:str=None, exception_message:str=None, ret_validity:bool=False):
+    """Logs messages around a function.
+
+    :param before_message: The message to log before.
+    :param after_message: The message to log after.
+    :param exception_message: The message to log when an exception occurs.
+    :param ret_validity: If true, if the function returns False or None, the exception message is printed.
+    :return: The decorated function.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if before_message:
+                log(before_message)
+
+            try:
+                out = func(*args, **kwargs)
+
+                if ret_validity:
+                    if out == False or out is None:
+                        if exception_message:
+                            log(exception_message)
+                        return out
+                    elif after_message:
+                        log(after_message)
+                elif after_message:
+                    log(after_message)
+
+                return out
+            except Exception:
+                if exception_message:
+                    log(exception_message)
+                raise
+        return wrapper
+    return decorator
+
+
+def log(*args, **kwargs):
+    """Logs a message if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    if Mem.log:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
+        logging.debug(*args, **kwargs)
+
+
+def print_detailed(*args, **kwargs):
+    """Prints a message if verbose is enabled, and logs if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    log(*args, **kwargs)
+    print_verbose(*args, **kwargs)
+
+
+def print_verbose(*args, **kwargs):
+    """Prints a message if verbose is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    if Mem.verbose:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
+        print(*args, **kwargs)
+
+
+def try_split(s: str, delimiter) -> list:
+    """Tries to split a string by the given delimiter(s).
+
+    :param s: The string to split.
+    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
+    :return: Returns the string split into a list.
+    """
+    if isinstance(delimiter, tuple):
+        for d in delimiter:
+            if d in s:
+                return [i.strip() for i in s.split(d)]
+    elif delimiter in s:
+        return s.split(delimiter)
+
+    return [s]
+# endregion
+
+
 # region commands
+@log_around(after_message='Changed scheduler successfully',
+            exception_message='Unable to change scheduler',
+            ret_validity=True)
 def change_scheduler(scheduler: str, device: str):
     """Changes the I/O scheduler for the given device.
 
@@ -416,6 +526,8 @@ def change_scheduler(scheduler: str, device: str):
     :param device: The device.
     :return: Returns True if successful, else False.
     """
+    log('Changing scheduler for device %s to %s' % (device, scheduler))
+
     command = 'bash -c "echo %s > /sys/block/%s/queue/scheduler"' % (scheduler, Mem.re_device.findall(device)[0])
 
     out, rc = run_command(command)
@@ -423,6 +535,10 @@ def change_scheduler(scheduler: str, device: str):
     return rc == 0
 
 
+@log_around('Validating required tracing dependencies are installed',
+            'Verified required tracing dependencies are required',
+            'Missing required tracing dependencies',
+            True)
 def check_trace_commands() -> bool:
     """Validates whether the required tracing commands exists on the system.
 
@@ -443,6 +559,7 @@ def check_trace_commands() -> bool:
     return True
 
 
+@log_around(exception_message='Unable to clean up files')
 def cleanup_files(*files):
     """Removes the specified file, or files if multiple are given.
 
@@ -451,27 +568,38 @@ def cleanup_files(*files):
     if not Mem.cleanup:  # Only cleanup if specified
         return
 
+    log('Cleaning up files')
+
     for file in files:
+        log('Removing files %s' % file)
         run_system_command('rm -f %s' % file)
 
 
+@log_around(after_message='Verified dependency exists',
+            exception_message='Missing dependency',
+            ret_validity=True)
 def command_exists(command: str) -> bool:
     """Returns whether the given command exists on the system.
 
     :param command: The command.
     :return: Returns True if exists, else False.
     """
+    log('Checking if dependency %s exists' % command)
+
     rc = run_system_command('command -v %s' % command)
 
     return rc == 0
 
 
+@log_around('Unable to retrieve major,minor information', ret_validity=True)
 def get_device_major_minor(device: str) -> str:
     """Returns a string of the major, minor of a given device.
 
     :param device: The device.
     :return: A string of major,minor.
     """
+    log('Retrieving major,minor for device %s' % device)
+
     out, _ = run_command('stat -c \'%%t,%%T\' %s' % device)
 
     return out if not out else out.strip()
@@ -483,19 +611,29 @@ def get_schedulers(device: str) -> list:
     :param device: The device.
     :return: Returns a list of schedulers.
     """
+    log('Retrieving schedulers for device %s' % device)
+
     matches = Mem.re_device.findall(device)
 
     if not matches:
+        log('Unable to find schedulers for device')
         return []
 
     out, rc = run_command('cat /sys/block/%s/queue/scheduler' % matches[0])
 
     if rc != 0:
+        log('Unable to find schedulers for device')
         return []
 
-    return out.replace('[', '').replace(']', '').split()
+    ret = out.replace('[', '').replace(']', '')
+
+    log('Found the following schedulers for device %s: %s' % (device, ret))
+
+    return ret.split()
 
 
+@log_around(before_message='Validating proposed schedulers',
+            exception_message='Unable to validate proposed schedulers')
 def get_valid_schedulers(device: str, proposed_schedulers: list) -> list:
     """Returns a list of schedulers that are valid for a given device and set of proposed schedulers.
 
@@ -514,32 +652,46 @@ def get_valid_schedulers(device: str, proposed_schedulers: list) -> list:
     return valid_schedulers
 
 
+@log_around('Killing processes',
+            'Killed all processes',
+            'Unable to kill all processes')
 def kill_processes(processes: set):
     """Kills the processes.
 
     :param processes: A set of tuples of command names and processes.
     """
     for command_name, process in processes:
+        log('Killing process %s' % process)
         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+
 
 @ignore_exception(FileNotFoundError, False)
 @ignore_exception(TypeError, False)
+@log_around(after_message='Device is a valid block device',
+            exception_message='Device is not a valid block device')
 def is_block_device(device: str) -> bool:
     """Returns whether the given device is a valid block device.
 
     :param device: The device.
     :return: Returns True if is a valid block device, else False.
     """
+    log('Checking if device %s is a valid block device' % device)
+
     info = os.stat(device)
     return stat.S_ISBLK(info.st_mode)
 
 
+@log_around(after_message='Device is a rotational device',
+            exception_message='Device is not a rotational device',
+            ret_validity=True)
 def is_rotational_device(device: str) -> bool:
     """Returns whether the given device is a rotational device.
 
     :param device: The device.
     :return: Returns True if is a rotational device, else False.
     """
+    log('Checking whether device %s is a rotational device' % device)
+
     matches = Mem.re_device.findall(device)
 
     if not matches:
@@ -553,11 +705,16 @@ def is_rotational_device(device: str) -> bool:
     return int(out) == 1
 
 
+@log_around(after_message='Setting is valid',
+            exception_message='Setting is invalid',
+            ret_validity=True)
 def is_valid_setting(setting: str, header: str) -> bool:
     """Returns whether the config setting is valid.
 
     :return: Returns True if setting is valid, else False.
     """
+    log('Checking whether setting %s under %s is valid' % (setting, header))
+
     if not header:
         return False
 
@@ -570,12 +727,17 @@ def is_valid_setting(setting: str, header: str) -> bool:
         return setting in Mem.valid_job_settings
 
 
+@log_around(after_message='Workload is valid',
+            exception_message='Workload is invalid',
+            ret_validity=True)
 def is_valid_workload(workload: str) -> bool:
     """Returns whether the given workload is valid.
 
     :param workload: The workload.
     :return: Returns True if valid, else False.
     """
+    log('Checking whether workload %s is valid' % workload)
+
     if workload not in Mem.valid_workloads:
         return False
 
@@ -592,6 +754,8 @@ def run_command(command: str, inp: str='') -> (str, int):
     :param inp: (OPTIONAL) Command input.
     :return: A tuple containing (the output, the return code).
     """
+    log('Running command %s with input %s' % (command, inp))
+
     try:
         args = shlex.split(command)
 
@@ -624,6 +788,7 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
     :param abort_on_failure: Whether to abort if a single process failures, otherwise continues. Defaults to True.
     :return: A dictionary where key = command name and value = tuple of (the output, the return code).
     """
+    log('Running commands in parallel')
 
     if max_concurrent < 1:
         print_detailed('Maximum concurrent processes must be > 0')
@@ -635,13 +800,14 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
     last_delay = 0
 
     for command_name, delay, command in sorted(command_map, key=lambda x: x[1]):
-
         try:
             # Delay command execution based on specified delay
             # Note: This isn't quite exact, due to timing issues and the concurrency limit
             if delay > last_delay:
                 time.sleep(delay - last_delay)
                 last_delay = delay
+
+            log('Running command %s' % command)
 
             args = shlex.split(command)
 
@@ -712,6 +878,7 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
     return None
 
 
+@log_around(exception_message='Error occurred running command')
 def run_system_command(command: str, silence: bool=True) -> int:
     """Runs a system command.
 
@@ -719,13 +886,16 @@ def run_system_command(command: str, silence: bool=True) -> int:
     :param silence: (OPTIONAL) Whether to silence the console output. Defaults to True.
     :return: The return code.
     """
-
     if silence:
         command = '%s >/dev/null 2>&1' % command
+
+    log('Running command %s' % command)
+
     rc = os.system(command)
     return rc
 
 
+@log_around('Validating jobs', 'Valid jobs found', 'All jobs are invalid', True)
 def validate_jobs() -> bool:
     """Returns whether each job is valid.
 
@@ -734,6 +904,8 @@ def validate_jobs() -> bool:
     job_index = 0
     while job_index < len(Mem.jobs):
         job = Mem.jobs[job_index]
+
+        log('Validating job %s' % job.name)
 
         # Fill in missing settings from globals
         job.fill_missing(Mem)
@@ -772,6 +944,7 @@ def validate_jobs() -> bool:
     return len(Mem.jobs) > 0  # At least 1 job required
 # endregion
 
+
 # region command-line
 def usage():
     """Displays command-line information."""
@@ -786,6 +959,8 @@ def usage():
     print('-x                : (OPTIONAL) Attempts to clean up intermediate files.')
 
 
+@log_around(before_message='Parsing command-line arguments', exception_message='Unable to parse arguments',
+            ret_validity=True)
 def parse_args(argv: list) -> bool:
     """Parses the supplied arguments and persists in memory.
 
@@ -818,6 +993,7 @@ def parse_config_file(file_path: str) -> bool:
     :param file_path: The file.
     :return: Returns True if settings are valid, else False.
     """
+    log('Parsing configuration file: %s' % file_path)
     Mem.config_file = file_path
 
     if not os.path.isfile(Mem.config_file):
@@ -890,13 +1066,17 @@ def parse_config_file(file_path: str) -> bool:
     return True
 # endregion
 
+
 # region jobs
+@log_around(after_message='Job executed successfully', exception_message='Job failed', ret_validity=True)
 def execute_job(job: Job) -> bool:
     """Executes a single job.
 
     :param job: The job.
     :return: Returns True if successful, else False.
     """
+    log('Executing job %s' % job)
+
     for scheduler in job.schedulers:
 
         if not change_scheduler(scheduler, job.device):
@@ -922,6 +1102,8 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
     :param command: The command.
     :return: Returns a dictionary of metrics if successful, else None.
     """
+    log('Executing workload %s' % workload)
+
     metrics = Metrics(workload)
 
     # Repeat job multiple times
@@ -952,6 +1134,7 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
         btt_out, _ = run_command(btt)
 
         # Cleanup intermediate files
+        log('Cleaning up files')
         cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
 
         dmm = get_device_major_minor(device)
@@ -963,13 +1146,20 @@ def execute_workload(repetition: int, workload: str, delay: int, device: str, sc
     return metrics.average_metrics()
 
 
-def process_jobs():
-    """Executes each job."""
+@log_around('Processing jobs', 'Processing jobs successfully', 'Failed to process all jobs', True)
+def process_jobs() -> bool:
+    """Executes each job.
+
+    :return: Returns True if successful, else False.
+    """
     for job in Mem.jobs:
         if not execute_job(job):
             if not Mem.continue_on_failure:
-                return
+                return False
+
+    return True
 # endregion
+
 
 # region processes
 def get_failed_processes(processes: set) -> set:
@@ -1020,74 +1210,8 @@ def print_processes(processes: set):
             print_detailed(err.decode('utf-8'))
 # endregion
 
-# region utils
-def ignore_exception(exception=Exception, default_val=None):
-    """A decorator function that ignores the exception raised, and instead returns a default value.
 
-    :param exception: The exception to catch.
-    :param default_val: The default value.
-    :return: The decorated function.
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except exception:
-                return default_val
-        return wrapper
-    return decorator
-
-
-def log(*args, **kwargs):
-    """Logs a message if logging is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    if Mem.log:
-        args = [a.strip() if isinstance(a, str) else a for a in args]
-        logging.debug(*args, **kwargs)
-
-
-def print_detailed(*args, **kwargs):
-    """Prints a message if verbose is enabled, and logs if logging is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    log(*args, **kwargs)
-    print_verbose(*args, **kwargs)
-
-
-def print_verbose(*args, **kwargs):
-    """Prints a message if verbose is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    if Mem.verbose:
-        args = [a.strip() if isinstance(a, str) else a for a in args]
-        print(*args, **kwargs)
-
-
-def try_split(s: str, delimiter) -> list:
-    """Tries to split a string by the given delimiter(s).
-
-    :param s: The string to split.
-    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
-    :return: Returns the string split into a list.
-    """
-    if isinstance(delimiter, tuple):
-        for d in delimiter:
-            if d in s:
-                return [i.strip() for i in s.split(d)]
-    elif delimiter in s:
-        return s.split(delimiter)
-
-    return [s]
-# endregion
-
+@log_around('Beginning program execution', 'Finishing program execution', 'Program encountered critical error')
 def main(argv: list):
     # Set logging as early as possible
     if '-l' in argv:
