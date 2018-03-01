@@ -483,6 +483,12 @@ class Job:
 
                 blktrace_out, _ = out['blktrace']
                 workload_out, _ = out[self.workload]
+
+                if blktrace_out is None or workload_out is None:
+                    log('Error running workload %s' % self.workload)
+                    time.sleep(5)
+                    continue
+
                 break
             else:
                 print_detailed('Unable to run workload %s' % self.workload)
