@@ -37,6 +37,113 @@ import time
 
 # TODO: Implement retry for specific commands (sometimes blktrace borks for unknown reasons)
 
+
+# region utils
+def ignore_exception(exception=Exception, default_val=None):
+    """A decorator function that ignores the exception raised, and instead returns a default value.
+
+    :param exception: The exception to catch.
+    :param default_val: The default value.
+    :return: The decorated function.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except exception:
+                return default_val
+        return wrapper
+    return decorator
+
+
+def log_around(before_message:str=None, after_message:str=None, exception_message:str=None, ret_validity:bool=False):
+    """Logs messages around a function.
+
+    :param before_message: The message to log before.
+    :param after_message: The message to log after.
+    :param exception_message: The message to log when an exception occurs.
+    :param ret_validity: If true, if the function returns False or None, the exception message is printed.
+    :return: The decorated function.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if before_message:
+                log(before_message)
+
+            try:
+                out = func(*args, **kwargs)
+
+                if ret_validity:
+                    if out == False or out is None:
+                        if exception_message:
+                            log(exception_message)
+                        return out
+                    elif after_message:
+                        log(after_message)
+                elif after_message:
+                    log(after_message)
+
+                return out
+            except Exception:
+                if exception_message:
+                    log(exception_message)
+                raise
+        return wrapper
+    return decorator
+
+
+def log(*args, **kwargs):
+    """Logs a message if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    if Mem.log:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
+        logging.debug(*args, **kwargs)
+
+
+def print_detailed(*args, **kwargs):
+    """Prints a message if verbose is enabled, and logs if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    log(*args, **kwargs)
+    print_verbose(*args, **kwargs)
+
+
+def print_verbose(*args, **kwargs):
+    """Prints a message if verbose is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    if Mem.verbose:
+        args = [a.strip() if isinstance(a, str) else a for a in args]
+        print(*args, **kwargs)
+
+
+def try_split(s: str, delimiter) -> list:
+    """Tries to split a string by the given delimiter(s).
+
+    :param s: The string to split.
+    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
+    :return: Returns the string split into a list.
+    """
+    if isinstance(delimiter, tuple):
+        for d in delimiter:
+            if d in s:
+                return [i.strip() for i in s.split(d)]
+    elif delimiter in s:
+        return s.split(delimiter)
+
+    return [s]
+# endregion
+
+
 # region classes
 class Mem:
     """A simple data-store for persisting and keeping track of global data."""
@@ -156,6 +263,19 @@ class Mem:
     def workload(self, value: str):
         self._workload = value
 
+    @log_around('Processing jobs', 'Processing jobs successfully', 'Failed to process all jobs', True)
+    def process_jobs(self) -> bool:
+        """Executes each job.
+
+        :return: Returns True if successful, else False.
+        """
+        for job in self.jobs:
+            if not job.execute():
+                if not self.continue_on_failure:
+                    return False
+
+        return True
+
 
 # Turns the class into a singleton (this is some sneaky stuff)
 Mem = Mem()
@@ -249,6 +369,26 @@ class Job:
     def workload(self, value):
         self._workload = value
 
+    @log_around(after_message='Job executed successfully', exception_message='Job failed', ret_validity=True)
+    def execute(self) -> bool:
+        """Executes a single job.
+
+        :return: Returns True if successful, else False.
+        """
+        log('Executing job %s' % self.name)
+
+        for scheduler in self.schedulers:
+
+            if not change_scheduler(scheduler, self.device):
+                print_detailed('Unable to change scheduler %s for device %s' % (scheduler, self.device))
+                return False
+
+            metrics = self._execute_workload()
+
+            # TODO: Print metrics or something
+
+        return True
+
     def fill_missing(self, o):
         """Fills in missing values from object.
 
@@ -271,18 +411,6 @@ class Job:
 
         if self._workload is None:
             self._workload = ignore_exception(AttributeError)(getattr)(o, 'workload')
-
-    def is_valid(self) -> bool:
-        """Returns whether the job is valid.
-
-        :return: Returns True if valid, else False.
-        """
-        return self._delay is not None and \
-            self._device is not None and \
-            self._repetition is not None and \
-            self._runtime is not None and \
-            self._schedulers is not None and \
-            self._workload is not None
 
     def get_invalid_props(self) -> list:
         """Returns the properties that are invalid.
@@ -310,6 +438,67 @@ class Job:
             invalid_props.append('workload')
 
         return invalid_props
+
+    def is_valid(self) -> bool:
+        """Returns whether the job is valid.
+
+        :return: Returns True if valid, else False.
+        """
+        return self._delay is not None and \
+            self._device is not None and \
+            self._repetition is not None and \
+            self._runtime is not None and \
+            self._schedulers is not None and \
+            self._workload is not None
+
+    def _execute_workload(self):
+        """Executes a workload.
+
+        :return: Returns a dictionary of metrics if successful, else None.
+        """
+        log('Executing workload %s' % self.workload)
+
+        metrics = Metrics(self.workload)
+
+        # Repeat job multiple times
+        for i in range(self.repetition):
+            device_short = Mem.re_device.findall(self.device)[0]
+
+            # Run workload along with blktrace
+            blktrace = Mem.format_blktrace % (self.device, device_short, self.runtime)
+
+            out = run_parallel_commands([('blktrace', 0, blktrace), (self.workload, self.delay, self.command)])
+
+            # Error running commands
+            if out is None:
+                print_detailed('Error running commands')
+                return None
+
+            blktrace_out, _ = out['blktrace']
+            workload_out, _ = out[self.workload]
+
+            # Run blkparse
+            blkparse = Mem.format_blkparse % (device_short, device_short)
+
+            blkparse_out, _ = run_command(blkparse)
+
+            # Run btt
+            btt = Mem.format_btt % device_short
+
+            btt_out, _ = run_command(btt)
+
+            # Cleanup intermediate files
+            if Mem.cleanup:
+                log('Cleaning up files')
+            cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
+
+            dmm = get_device_major_minor(self.device)
+            cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
+
+            m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
+            metrics.add_metrics(m)
+
+        return metrics.average_metrics()
 
 
 class Metrics:
@@ -406,112 +595,6 @@ class Metrics:
         metrics = {**metrics, **workload_metrics}
 
         return metrics
-# endregion
-
-
-# region utils
-def ignore_exception(exception=Exception, default_val=None):
-    """A decorator function that ignores the exception raised, and instead returns a default value.
-
-    :param exception: The exception to catch.
-    :param default_val: The default value.
-    :return: The decorated function.
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except exception:
-                return default_val
-        return wrapper
-    return decorator
-
-
-def log_around(before_message:str=None, after_message:str=None, exception_message:str=None, ret_validity:bool=False):
-    """Logs messages around a function.
-
-    :param before_message: The message to log before.
-    :param after_message: The message to log after.
-    :param exception_message: The message to log when an exception occurs.
-    :param ret_validity: If true, if the function returns False or None, the exception message is printed.
-    :return: The decorated function.
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            if before_message:
-                log(before_message)
-
-            try:
-                out = func(*args, **kwargs)
-
-                if ret_validity:
-                    if out == False or out is None:
-                        if exception_message:
-                            log(exception_message)
-                        return out
-                    elif after_message:
-                        log(after_message)
-                elif after_message:
-                    log(after_message)
-
-                return out
-            except Exception:
-                if exception_message:
-                    log(exception_message)
-                raise
-        return wrapper
-    return decorator
-
-
-def log(*args, **kwargs):
-    """Logs a message if logging is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    if Mem.log:
-        args = [a.strip() if isinstance(a, str) else a for a in args]
-        logging.debug(*args, **kwargs)
-
-
-def print_detailed(*args, **kwargs):
-    """Prints a message if verbose is enabled, and logs if logging is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    log(*args, **kwargs)
-    print_verbose(*args, **kwargs)
-
-
-def print_verbose(*args, **kwargs):
-    """Prints a message if verbose is enabled.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    if Mem.verbose:
-        args = [a.strip() if isinstance(a, str) else a for a in args]
-        print(*args, **kwargs)
-
-
-def try_split(s: str, delimiter) -> list:
-    """Tries to split a string by the given delimiter(s).
-
-    :param s: The string to split.
-    :param delimiter: Either a single string, or a tuple of strings (i.e. (',', ';').
-    :return: Returns the string split into a list.
-    """
-    if isinstance(delimiter, tuple):
-        for d in delimiter:
-            if d in s:
-                return [i.strip() for i in s.split(d)]
-    elif delimiter in s:
-        return s.split(delimiter)
-
-    return [s]
 # endregion
 
 
@@ -1067,100 +1150,6 @@ def parse_config_file(file_path: str) -> bool:
 # endregion
 
 
-# region jobs
-@log_around(after_message='Job executed successfully', exception_message='Job failed', ret_validity=True)
-def execute_job(job: Job) -> bool:
-    """Executes a single job.
-
-    :param job: The job.
-    :return: Returns True if successful, else False.
-    """
-    log('Executing job %s' % job)
-
-    for scheduler in job.schedulers:
-
-        if not change_scheduler(scheduler, job.device):
-            print_detailed('Unable to change scheduler %s for device %s' % (scheduler, job.device))
-            return False
-
-        metrics = execute_workload(job.repetition, job.workload, job.delay, job.device, scheduler, job.runtime, job.command)
-
-        # TODO: Print metrics or something
-
-    return True
-
-
-def execute_workload(repetition: int, workload: str, delay: int, device: str, scheduler: str, runtime: int, command: str):
-    """Executes a workload.
-
-    :param repetition: The number of times to repeat the workload.
-    :param workload: The workload.
-    :param delay: The delay.
-    :param device: The device.
-    :param scheduler: The schedulers.
-    :param runtime: The runtime.
-    :param command: The command.
-    :return: Returns a dictionary of metrics if successful, else None.
-    """
-    log('Executing workload %s' % workload)
-
-    metrics = Metrics(workload)
-
-    # Repeat job multiple times
-    for i in range(repetition):
-        device_short = Mem.re_device.findall(device)[0]
-
-        # Run workload along with blktrace
-        blktrace = Mem.format_blktrace % (device, device_short, runtime)
-
-        out = run_parallel_commands([('blktrace', 0, blktrace), (workload, delay, command)])
-
-        # Error running commands
-        if out is None:
-            print_detailed('Error running commands')
-            return None
-
-        blktrace_out, _ = out['blktrace']
-        workload_out, _ = out[workload]
-
-        # Run blkparse
-        blkparse = Mem.format_blkparse % (device_short, device_short)
-
-        blkparse_out, _ = run_command(blkparse)
-
-        # Run btt
-        btt = Mem.format_btt % device_short
-
-        btt_out, _ = run_command(btt)
-
-        # Cleanup intermediate files
-        log('Cleaning up files')
-        cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
-
-        dmm = get_device_major_minor(device)
-        cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
-
-        m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, workload)
-        metrics.add_metrics(m)
-
-    return metrics.average_metrics()
-
-
-@log_around('Processing jobs', 'Processing jobs successfully', 'Failed to process all jobs', True)
-def process_jobs() -> bool:
-    """Executes each job.
-
-    :return: Returns True if successful, else False.
-    """
-    for job in Mem.jobs:
-        if not execute_job(job):
-            if not Mem.continue_on_failure:
-                return False
-
-    return True
-# endregion
-
-
 # region processes
 def get_failed_processes(processes: set) -> set:
     """Returns the processes which are failed.
@@ -1252,7 +1241,8 @@ def main(argv: list):
         sys.exit(1)
 
     # Beginning running jobs
-    process_jobs()
+    if not Mem.process_jobs():
+        sys.exit(1)
 
 
 if __name__ == '__main__':
