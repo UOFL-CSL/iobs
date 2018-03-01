@@ -35,9 +35,6 @@ import sys
 import time
 
 
-# TODO: Implement retry for specific commands (sometimes blktrace borks for unknown reasons)
-
-
 # region utils
 def ignore_exception(exception=Exception, default_val=None):
     """A decorator function that ignores the exception raised, and instead returns a default value.
