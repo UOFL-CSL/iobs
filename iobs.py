@@ -477,7 +477,8 @@ class Job:
 
                 # Error running commands
                 if out is None:
-                    log('Error running commands')
+                    log('Error running workload %s' % self.workload)
+                    time.sleep(5)
                     continue
 
                 blktrace_out, _ = out['blktrace']
