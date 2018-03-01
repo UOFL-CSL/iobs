@@ -176,9 +176,19 @@ class Mem:
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
 
         # Regex
+        self.re_blkparse_throughput_read = re.compile(f'Throughput \(R/W\): (\d+)[a-zA-Z]+/s')
+        self.re_blkparse_throughput_write = re.compile(f'Throughput \(R/W\): (?:\d+)[a-zA-Z]+/s / (\d+)[a-zA-z]+/s')
         self.re_btt_d2c = re.compile(r'D2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_btt_q2c = re.compile(r'Q2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_device = re.compile(r'/dev/(.*)')
+        self.re_fio_bandwidth_read_KB = re.compile(r'Run status group 0 \(all jobs\):\s*READ: io=\d+.+\d+[a-zA-Z]*, '
+                                                   r'aggrb=(\d+)KB/s.*')
+        self.re_fio_bandwidth_read_MB = re.compile(r'Run status group 0 \(all jobs\):\s*READ: io=\d+.+\d+[a-zA-Z]*, '
+                                                   r'aggrb=(\d+)MB/s.*')
+        self.re_fio_bandwidth_write_KB = re.compile(r'Run status group 0 \(all jobs\):\s*READ.*\s*'
+                                                    r'WRITE: io=\d+.+\d+[a-zA-Z]*, aggrb=(\d+)KB/s.*')
+        self.re_fio_bandwidth_write_MB = re.compile(r'Run status group 0 \(all jobs\):\s*READ.*\s*'
+                                                    r'WRITE: io=\d+.+\d+[a-zA-Z]*, aggrb=(\d+)MB/s.*')
         self.re_fio_clat_msec = re.compile(
             r'clat \(msec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
         self.re_fio_clat_usec = re.compile(
@@ -563,6 +573,25 @@ class Metrics:
         """
         ret = dict()
         if workload == 'fio':
+            # fio can give MB/s or KB/s output, check for whichever is found
+            bandwidth_read = Mem.re_fio_bandwidth_read_KB.findall(workload_out)
+
+            if bandwidth_read:
+                ret['bandwidth-read'] = float(bandwidth_read[0])
+            else:
+                bandwidth_read = Mem.re_fio_bandwidth_read_MB.findall(workload_out)
+                if bandwidth_read:
+                    ret['bandwidth-read'] = float(bandwidth_read[0]) * 1024
+
+            bandwidth_write = Mem.re_fio_bandwidth_write_KB.findall(workload_out)
+
+            if bandwidth_write:
+                ret['bandwidth-write]'] = float(bandwidth_write[0])
+            else:
+                bandwidth_write = Mem.re_fio_bandwidth_write_MB.findall(workload_out)
+                if bandwidth_write:
+                    ret['bandwidth-write'] = float(bandwidth_write[0]) * 1024
+
             # fio can give msec or usec output, check for whichever is found
             clat = Mem.re_fio_clat_msec.findall(workload_out)
 
@@ -570,7 +599,8 @@ class Metrics:
                 ret['clat'] = float(clat[0]) * 1e-3
             else:
                 clat = Mem.re_fio_clat_usec.findall(workload_out)
-                ret['clat'] = float(clat[0]) * 1e-6
+                if clat:
+                    ret['clat'] = float(clat[0]) * 1e-6
 
             slat = Mem.re_fio_slat_msec.findall(workload_out)
 
@@ -578,7 +608,8 @@ class Metrics:
                 ret['slat'] = float(slat[0]) * 1e-3
             else:
                 slat = Mem.re_fio_slat_usec.findall(workload_out)
-                ret['slat'] = float(slat[0]) * 1e-6
+                if slat:
+                    ret['slat'] = float(slat[0]) * 1e-6
         else:
             print_detailed('Unable to interpret workload %s' % workload)
 
@@ -597,6 +628,18 @@ class Metrics:
         """
         metrics = dict()
 
+        # blkparse
+        throughput_read = Mem.re_blkparse_throughput_read.findall(blkparse_out)
+
+        if throughput_read:
+            metrics['throughput-read'] = float(throughput_read[0])
+
+        throughput_write = Mem.re_blkparse_throughput_write.findall(blkparse_out)
+
+        if throughput_write:
+            metrics['throughput-write'] = float(throughput_write[0])
+
+        # btt
         d2c = Mem.re_btt_d2c.findall(btt_out)
 
         if d2c:
