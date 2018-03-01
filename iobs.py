@@ -158,6 +158,7 @@ class Mem:
         self.continue_on_failure: bool = False
         self.jobs: list = []
         self.log: bool = False
+        self.retry: int = 1
         self.verbose: bool = False
 
         # Global Job Settings
@@ -464,18 +465,27 @@ class Job:
         for i in range(self.repetition):
             device_short = Mem.re_device.findall(self.device)[0]
 
-            # Run workload along with blktrace
-            blktrace = Mem.format_blktrace % (self.device, device_short, self.runtime)
+            # Repeat workload if failure
+            retry = 0
+            while retry < Mem.retry:
+                retry += 1
 
-            out = run_parallel_commands([('blktrace', 0, blktrace), (self.workload, self.delay, self.command)])
+                # Run workload along with blktrace
+                blktrace = Mem.format_blktrace % (self.device, device_short, self.runtime)
 
-            # Error running commands
-            if out is None:
-                print_detailed('Error running commands')
+                out = run_parallel_commands([('blktrace', 0, blktrace), (self.workload, self.delay, self.command)])
+
+                # Error running commands
+                if out is None:
+                    log('Error running commands')
+                    continue
+
+                blktrace_out, _ = out['blktrace']
+                workload_out, _ = out[self.workload]
+                break
+            else:
+                print_detailed('Unable to run workload %s' % self.workload)
                 return None
-
-            blktrace_out, _ = out['blktrace']
-            workload_out, _ = out[self.workload]
 
             # Run blkparse
             blkparse = Mem.format_blkparse % (device_short, device_short)
@@ -1033,11 +1043,12 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s <file> [-l] [-v]' % name)
+    print('Usage: %s <file> [-c] [-l] [-r <retry>] [-v] [-x]' % name)
     print('Command Line Arguments:')
     print('<file>            : The configuration file to use.')
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
+    print('-r <retry>        : (OPTIONAL) Used to retry a job more than once if failure occurs. Defaults to 1.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
     print('-x                : (OPTIONAL) Attempts to clean up intermediate files.')
 
@@ -1051,7 +1062,7 @@ def parse_args(argv: list) -> bool:
     :return: Returns a boolean as True if parsed correctly, otherwise False.
     """
     try:
-        opts, args = getopt(argv, 'hlvx')
+        opts, args = getopt(argv, 'hlr:vx')
 
         for opt, arg in opts:
             if opt == '-c':
@@ -1060,6 +1071,14 @@ def parse_args(argv: list) -> bool:
                 return False
             elif opt == '-l':
                 Mem.log = True
+            elif opt == '-r':
+                conv_value = ignore_exception(ValueError, -1)(int)(arg)
+
+                if conv_value < 1:
+                    print_detailed('Retry count must be >= 1, given %s' % arg)
+                    return False
+
+                Mem.retry = conv_value
             elif opt == '-v':
                 Mem.verbose = True
             elif opt == '-x':
