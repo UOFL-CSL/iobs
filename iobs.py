@@ -112,6 +112,21 @@ def print_detailed(*args, **kwargs):
     print_verbose(*args, **kwargs)
 
 
+def print_output(*args, **kwargs):
+    """Prints a message to STDOUT, and to an output file if an output_file is specified.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    print(*args, **kwargs)
+
+    if Mem.output_file:
+        with open(Mem.output_file, 'a') as f:
+            for arg in args:
+                f.write(arg)
+                f.write('\n')
+
+
 def print_verbose(*args, **kwargs):
     """Prints a message if verbose is enabled.
 
@@ -155,6 +170,7 @@ class Mem:
         self.continue_on_failure: bool = False
         self.jobs: list = []
         self.log: bool = False
+        self.output_file: str = None
         self.retry: int = 1
         self.verbose: bool = False
 
@@ -393,7 +409,7 @@ class Job:
 
             metrics = self._execute_workload()
 
-            # TODO: Print metrics or something
+            Metrics.print(self.name, self.workload, scheduler, self.device, metrics)
 
         return True
 
@@ -652,6 +668,18 @@ class Metrics:
         metrics = {**metrics, **workload_metrics}
 
         return metrics
+
+    @staticmethod
+    def print(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
+        """Prints metric information to STDOUT.
+
+        :param job_name: The name of the job.
+        :param workload: The workload.
+        :param scheduler: The scheduler.
+        :param device: The device.
+        :param metrics: The metrics.
+        """
+        pass
 # endregion
 
 
@@ -1077,11 +1105,12 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s <file> [-c] [-l] [-r <retry>] [-v] [-x]' % name)
+    print('Usage: %s <file> [-c] [-l] [-o <output>] [-r <retry>] [-v] [-x]' % name)
     print('Command Line Arguments:')
     print('<file>            : The configuration file to use.')
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
+    print('-o <output>       : (OPTIONAL) Outputs metric information to a file.')
     print('-r <retry>        : (OPTIONAL) Used to retry a job more than once if failure occurs. Defaults to 1.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
     print('-x                : (OPTIONAL) Attempts to clean up intermediate files.')
@@ -1096,7 +1125,7 @@ def parse_args(argv: list) -> bool:
     :return: Returns a boolean as True if parsed correctly, otherwise False.
     """
     try:
-        opts, args = getopt(argv, 'hlr:vx')
+        opts, args = getopt(argv, 'hlo:r:vx')
 
         for opt, arg in opts:
             if opt == '-c':
@@ -1105,6 +1134,8 @@ def parse_args(argv: list) -> bool:
                 return False
             elif opt == '-l':
                 Mem.log = True
+            elif opt == '-o':
+                Mem.output_file = arg
             elif opt == '-r':
                 conv_value = ignore_exception(ValueError, -1)(int)(arg)
 
