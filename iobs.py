@@ -54,7 +54,7 @@ def ignore_exception(exception=Exception, default_val=None):
     return decorator
 
 
-def log_around(before_message:str=None, after_message:str=None, exception_message:str=None, ret_validity:bool=False):
+def log_around(before_message: str=None, after_message: str=None, exception_message: str=None, ret_validity: bool=False):
     """Logs messages around a function.
 
     :param before_message: The message to log before.
@@ -73,7 +73,7 @@ def log_around(before_message:str=None, after_message:str=None, exception_messag
                 out = func(*args, **kwargs)
 
                 if ret_validity:
-                    if out == False or out is None:
+                    if out is False or out is None:
                         if exception_message:
                             log(exception_message)
                         return out
