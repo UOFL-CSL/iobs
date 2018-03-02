@@ -792,19 +792,6 @@ def get_valid_schedulers(device: str, proposed_schedulers: list) -> list:
     return valid_schedulers
 
 
-@log_around('Killing processes',
-            'Killed all processes',
-            'Unable to kill all processes')
-def kill_processes(processes: set):
-    """Kills the processes.
-
-    :param processes: A set of tuples of command names and processes.
-    """
-    for command_name, process in processes:
-        log('Killing process %s' % process)
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-
-
 @ignore_exception(FileNotFoundError, False)
 @ignore_exception(TypeError, False)
 @log_around(after_message='Device is a valid block device',
@@ -1250,6 +1237,19 @@ def get_finished_processes(processes: set) -> set:
             finished_processes.add((command_name, process))
 
     return finished_processes
+
+
+@log_around('Killing processes',
+            'Killed all processes',
+            'Unable to kill all processes')
+def kill_processes(processes: set):
+    """Kills the processes.
+
+    :param processes: A set of tuples of command names and processes.
+    """
+    for command_name, process in processes:
+        log('Killing process %s' % process)
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
 
 
 def print_processes(processes: set):
