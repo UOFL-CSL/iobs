@@ -22,6 +22,7 @@ __version__ = '0.2.0'
 from functools import wraps
 from getopt import getopt, GetoptError
 
+import configparser
 import logging
 import os
 import platform
@@ -162,7 +163,7 @@ class Mem:
 
     def __init__(self):
         # Constants
-        self.GLOBAL_HEADER = 'globals'
+        self.GLOBAL_HEADER = 'global'
 
         # Settings
         self.cleanup: bool = False
@@ -1166,70 +1167,41 @@ def parse_config_file(file_path: str) -> bool:
     if not os.path.isfile(Mem.config_file):
         sys.exit('File not found: %s' % Mem.config_file)
 
-    re_header = re.compile(r'\s*\[(.*)\]\s*(?:.*)*')
+    config = configparser.ConfigParser()
 
-    header = None
 
-    with open(Mem.config_file, 'r') as file:
-        for line in file:
-            # Comment
-            comment_index = line.find('#')
+    try:
+        config.read(file_path, 'utf-8')
+    except configparser.ParsingError as err:
+        print_detailed('Invalid syntax in config file found!')
+        log(err)
+        return False
 
-            if comment_index != -1:
-                line = line[0:comment_index].strip()
-
-            comment_index = line.find(';')
-
-            if comment_index != -1:
-                line = line[0:comment_index].strip()
-
-            if not line.strip():
-                continue
-
-            # Header
-            header_match = re_header.fullmatch(line)
-
-            if header_match:
-                header = line[header_match.regs[1][0]:header_match.regs[1][1]]
-
-                if header != Mem.GLOBAL_HEADER:
-                    Mem.jobs.append(Job(header))
-                continue
-
-            # Setting
-            line_split = line.split('=')
-
-            if len(line_split) != 2:  # Invalid syntax
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            name = line_split[0].strip()
-            value = line_split[1].strip()
-
-            if not name or not value:
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            if not is_valid_setting(name, header):
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            if not header:
-                print_detailed('Invalid syntax in config file found: %s' % line)
-                return False
-
-            if header == Mem.GLOBAL_HEADER:
-                try:
-                    setattr(Mem, name, value)
-                except ValueError:
-                    print_detailed('Invalid syntax in config file found: %s' % line)
+    for section in config.sections():
+        if section == Mem.GLOBAL_HEADER:
+            for key, value in config[section].items():
+                if not is_valid_setting(key, section):
+                    print_detailed('Invalid syntax in config file found: %s=%s' % (key, value))
                     return False
-            else:
+
                 try:
-                    setattr(Mem.jobs[-1], name, value)
+                    setattr(Mem, key, value)
                 except ValueError:
-                    print_detailed('Invalid syntax in config file found: %s' % line)
+                    print_detailed('Invalid syntax in config file found: %s=%s' % (key, value))
                     return False
+        else:
+            Mem.jobs.append(Job(section))
+            for key, value in config[section].items():
+                if not is_valid_setting(key, section):
+                    print_detailed('Invalid syntax in config file found: %s=%s' % (key, value))
+                    return False
+
+                try:
+                    setattr(Mem.jobs[-1], key, value)
+                except ValueError:
+                    print_detailed('Invalid syntax in config file found: %s=%s' % (key, value))
+                    return False
+
     return True
 # endregion
 

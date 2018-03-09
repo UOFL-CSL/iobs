@@ -1,4 +1,4 @@
-[globals]
+[global]
 device=/dev/sda
 repetition=3
 runtime=10
