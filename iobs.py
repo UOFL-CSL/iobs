@@ -114,8 +114,14 @@ def log(*args, **kwargs):
     :param kwargs: The keyword arguments.
     """
     if Mem.log:
-        args = [a.strip() if isinstance(a, str) else a for a in args]
-        logging.debug(*args, **kwargs)
+        if args:
+            args_rem = [a.strip() if isinstance(a, str) else a for a in args][1:]
+            message = args[0]
+
+            for line in message.split('\n'):
+                logging.debug(line, *args_rem, **kwargs)
+        else:
+            logging.debug(*args, **kwargs)
 
 
 def print_detailed(*args, **kwargs):
@@ -287,7 +293,7 @@ class Mem:
     def workload(self, value: str):
         self._workload = value
 
-    @log_around('Processing jobs', 'Processing jobs successfully', 'Failed to process all jobs', True)
+    @log_around('Processing jobs', 'Processed jobs successfully', 'Failed to process all jobs', True)
     def process_jobs(self) -> bool:
         """Executes each job.
 
@@ -579,6 +585,26 @@ class Metrics:
         return averaged_metrics
 
     @staticmethod
+    def average_metric(metrics: dict, names: tuple):
+        """Returns the average of the metrics.
+
+        :param metrics: The metrics dictionary.
+        :param names: The name of the metrics to average.
+        :return: The average of the metrics.
+        """
+        count = 0
+        summation = 0
+        for name in names:
+            if name in metrics and metrics[name] > 0:
+                summation += metrics[name]
+                count += 1
+
+        if count == 0:
+            return 0
+        else:
+            return summation / count
+
+    @staticmethod
     def gather_workload_metrics(workload_out: str, workload: str) -> dict:
         """Parses workload outputs and returns relevant metrics.
 
@@ -594,6 +620,7 @@ class Metrics:
             bwrc, bwwc = 0, 0
             crc, cwc = 0, 0
             src, swc = 0, 0
+            iopsr, iopsw = 0, 0
 
             for job in data['jobs']:
                 ret['bandwidth-read'] += float(job['read']['bw'])
@@ -614,12 +641,21 @@ class Metrics:
                 ret['slat-write'] += float(job['write']['slat']['mean'])
                 if job['write']['slat']['mean'] > 0: swc += 1
 
+                ret['iops-read'] += float(job['read']['iops'])
+                if job['read']['iops'] > 0: iopsr += 1
+
+                ret['iops-write'] += float(job['write']['iops'])
+                if job['write']['iops'] > 0: iopsw += 1
+
+            # Compute averages
             if bwrc > 0: ret['bandwidth-read'] /= bwrc
             if bwwc > 0: ret['bandwidth-write'] /= bwwc
             if crc > 0: ret['clat-read'] /= crc
             if cwc > 0: ret['clat-write'] /= cwc
             if src > 0: ret['slat-read'] /= src
             if swc > 0: ret['slat-write'] /= swc
+            if iopsr > 0: ret['iops-read'] /= iopsr
+            if iopsw > 0: ret['iops-write'] /= iopsw
         else:
             print_detailed('Unable to interpret workload %s' % workload)
 
@@ -653,16 +689,16 @@ class Metrics:
         d2c = Mem.re_btt_d2c.findall(btt_out)
 
         if d2c:
-            metrics['d2c'] = float(d2c[0])
+            metrics['d2c'] = float(d2c[0]) * 10**6  # µs
 
         q2c = Mem.re_btt_q2c.findall(btt_out)
 
         if q2c:
-            metrics['q2c'] = float(q2c[0])
+            metrics['q2c'] = float(q2c[0]) * 10**6  # µs
 
         workload_metrics = Metrics.gather_workload_metrics(workload_out, workload)
 
-        metrics = {**metrics, **workload_metrics}
+        metrics = defaultdict(int, {**metrics, **workload_metrics})
 
         return metrics
 
@@ -676,7 +712,26 @@ class Metrics:
         :param device: The device.
         :param metrics: The metrics.
         """
-        pass
+        metrics = defaultdict(int, metrics)
+        slat = Metrics.average_metric(metrics, ('slat-read', 'slat-write'))
+        clat = Metrics.average_metric(metrics, ('clat-read', 'clat-write'))
+        fslat = clat - metrics['q2c']
+        bslat = metrics['q2c'] - metrics['d2c']
+        throughput = Metrics.average_metric(metrics, ('throughput-read', 'throughput-write'))
+        iops = Metrics.average_metric(metrics, ('iops-read', 'iops-write'))
+
+        print_output('%s [%s]:' % (job_name, workload))
+        print_output('  (%s) (%s):' % (scheduler, device))
+        print_output('    Submission Latency [µs]: %s (read): %s (write): %s' %
+                     (slat, metrics['slat-read'], metrics['slat-write']))
+        print_output('    Completion Latency [µs]: %s (read): %s (write): %s' %
+                     (clat, metrics['clat-read'], metrics['clat-write']))
+        print_output('    File System Latency [µs]: %s' % fslat)
+        print_output('    Block Layer Latency [µs]: %s' % bslat)
+        print_output('    Device Latency [µs]: %s' % metrics['d2c'])
+        print_output('    IOPS: %s (read) %s (write) %s' % (iops, metrics['iops-read'], metrics['iops-write']))
+        print_output('    Throughput [1024 B/s]: %s (read) %s (write) %s' %
+                     (throughput, metrics['throughput-read'], metrics['throughput-write']))
 # endregion
 
 
@@ -1304,6 +1359,11 @@ def main(argv: list):
 
     if not check_trace_commands():
         sys.exit(1)
+
+    # Remove previous files
+    if os.path.isfile(Mem.output_file):
+        log('Deleting existing output file: %s' % Mem.output_file)
+        os.remove(Mem.output_file)
 
     # Beginning running jobs
     if not Mem.process_jobs():
