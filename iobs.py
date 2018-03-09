@@ -19,10 +19,12 @@ __author__ = 'Jared Gillespie'
 __version__ = '0.2.0'
 
 
+from collections import defaultdict
 from functools import wraps
 from getopt import getopt, GetoptError
 
 import configparser
+import json
 import logging
 import os
 import platform
@@ -37,6 +39,19 @@ import time
 
 
 # region utils
+def adjusted_workload(command: str, workload: str):
+    """Adjusts a command by adding extra flags, etc.
+
+    :param command: The command.
+    :param workload: The workload.
+    :return: The adjusted workload command.
+    """
+    if workload == 'fio':
+        return '%s %s' % (command, '--output-format=json')
+
+    return command
+
+
 def ignore_exception(exception=Exception, default_val=None):
     """A decorator function that ignores the exception raised, and instead returns a default value.
 
@@ -195,22 +210,6 @@ class Mem:
         self.re_btt_d2c = re.compile(r'D2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_btt_q2c = re.compile(r'Q2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_device = re.compile(r'/dev/(.*)')
-        self.re_fio_bandwidth_read_KB = re.compile(r'Run status group 0 \(all jobs\):\s*READ: io=\d+.+\d+[a-zA-Z]*, '
-                                                   r'aggrb=(\d+)KB/s.*')
-        self.re_fio_bandwidth_read_MB = re.compile(r'Run status group 0 \(all jobs\):\s*READ: io=\d+.+\d+[a-zA-Z]*, '
-                                                   r'aggrb=(\d+)MB/s.*')
-        self.re_fio_bandwidth_write_KB = re.compile(r'Run status group 0 \(all jobs\):\s*READ.*\s*'
-                                                    r'WRITE: io=\d+.+\d+[a-zA-Z]*, aggrb=(\d+)KB/s.*')
-        self.re_fio_bandwidth_write_MB = re.compile(r'Run status group 0 \(all jobs\):\s*READ.*\s*'
-                                                    r'WRITE: io=\d+.+\d+[a-zA-Z]*, aggrb=(\d+)MB/s.*')
-        self.re_fio_clat_msec = re.compile(
-            r'clat \(msec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
-        self.re_fio_clat_usec = re.compile(
-            r'clat \(usec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
-        self.re_fio_slat_msec = re.compile(
-            r'slat \(msec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
-        self.re_fio_slat_usec = re.compile(
-            r'slat \(usec\): min=(?:\d+.?\d*), max=(?:\d+.?\d*), avg=(\d+.?\d*), stdev=(?:\d+.?\d*)')
 
         # Validity
         self.valid_global_settings = {'command', 'delay', 'device', 'schedulers', 'repetition', 'runtime', 'workload'}
@@ -497,7 +496,9 @@ class Job:
                 # Run workload along with blktrace
                 blktrace = Mem.format_blktrace % (self.device, device_short, self.runtime)
 
-                out = run_parallel_commands([('blktrace', 0, blktrace), (self.workload, self.delay, self.command)])
+                adj_command = adjusted_workload(self.command, self.workload)
+
+                out = run_parallel_commands([('blktrace', 0, blktrace), (self.workload, self.delay, adj_command)])
 
                 # Error running commands
                 if out is None:
@@ -585,45 +586,40 @@ class Metrics:
         :param workload: The workload.
         :return: A dictionary of metrics and their values.
         """
-        ret = dict()
+        ret = defaultdict(int)
+
         if workload == 'fio':
-            # fio can give MB/s or KB/s output, check for whichever is found
-            bandwidth_read = Mem.re_fio_bandwidth_read_KB.findall(workload_out)
+            data = json.loads(workload_out, encoding='utf-8')
 
-            if bandwidth_read:
-                ret['bandwidth-read'] = float(bandwidth_read[0])
-            else:
-                bandwidth_read = Mem.re_fio_bandwidth_read_MB.findall(workload_out)
-                if bandwidth_read:
-                    ret['bandwidth-read'] = float(bandwidth_read[0]) * 1024
+            bwrc, bwwc = 0, 0
+            crc, cwc = 0, 0
+            src, swc = 0, 0
 
-            bandwidth_write = Mem.re_fio_bandwidth_write_KB.findall(workload_out)
+            for job in data['jobs']:
+                ret['bandwidth-read'] += float(job['read']['bw'])
+                if job['read']['bw'] > 0: bwrc += 1
 
-            if bandwidth_write:
-                ret['bandwidth-write]'] = float(bandwidth_write[0])
-            else:
-                bandwidth_write = Mem.re_fio_bandwidth_write_MB.findall(workload_out)
-                if bandwidth_write:
-                    ret['bandwidth-write'] = float(bandwidth_write[0]) * 1024
+                ret['bandwidth-write'] += float(job['write']['bw'])
+                if job['write']['bw'] > 0: bwwc += 1
 
-            # fio can give msec or usec output, check for whichever is found
-            clat = Mem.re_fio_clat_msec.findall(workload_out)
+                ret['clat-read'] += float(job['read']['clat']['mean'])
+                if job['read']['clat']['mean'] > 0: crc += 1
 
-            if clat:
-                ret['clat'] = float(clat[0]) * 1e-3
-            else:
-                clat = Mem.re_fio_clat_usec.findall(workload_out)
-                if clat:
-                    ret['clat'] = float(clat[0]) * 1e-6
+                ret['clat-write'] += float(job['write']['clat']['mean'])
+                if job['write']['clat']['mean'] > 0: cwc += 1
 
-            slat = Mem.re_fio_slat_msec.findall(workload_out)
+                ret['slat-read'] += float(job['read']['slat']['mean'])
+                if job['write']['slat']['mean'] > 0: src += 1
 
-            if slat:
-                ret['slat'] = float(slat[0]) * 1e-3
-            else:
-                slat = Mem.re_fio_slat_usec.findall(workload_out)
-                if slat:
-                    ret['slat'] = float(slat[0]) * 1e-6
+                ret['slat-write'] += float(job['write']['slat']['mean'])
+                if job['write']['slat']['mean'] > 0: swc += 1
+
+            if bwrc > 0: ret['bandwidth-read'] /= bwrc
+            if bwwc > 0: ret['bandwidth-write'] /= bwwc
+            if crc > 0: ret['clat-read'] /= crc
+            if cwc > 0: ret['clat-write'] /= cwc
+            if src > 0: ret['slat-read'] /= src
+            if swc > 0: ret['slat-write'] /= swc
         else:
             print_detailed('Unable to interpret workload %s' % workload)
 
