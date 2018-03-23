@@ -36,6 +36,10 @@ import signal
 import subprocess
 import sys
 import time
+import numpy as np
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 
 
 # region utils
@@ -415,6 +419,22 @@ class Job:
 
             metrics = self._execute_workload()
 
+            metrics = defaultdict(int, metrics)
+            slat = Metrics.average_metric(metrics, ('slat-read', 'slat-write'))
+            clat = Metrics.average_metric(metrics, ('clat-read', 'clat-write'))
+            fslat = clat - metrics['q2c']
+            bslat = metrics['q2c'] - metrics['d2c']
+            throughput = Metrics.average_metric(metrics, ('throughput-read', 'throughput-write'))
+            iops = Metrics.average_metric(metrics, ('iops-read', 'iops-write'))
+            metrics['slat'] = slat
+            metrics['clat'] = clat
+            metrics['fslat'] = fslat
+            metrics['bslat'] = bslat
+            metrics['throughput'] = throughput
+            metrics['iops'] = iops
+
+            Metrics.graph(self, self.name, self.workload, scheduler, metrics)
+
             Metrics.print(self.name, self.workload, scheduler, self.device, metrics)
 
         return True
@@ -703,6 +723,72 @@ class Metrics:
         return metrics
 
     @staticmethod
+    def graph(self, job_name: str, workload: str, scheduler: str, metrics: dict):
+        """Graphs all metrics
+
+        :param job_name: The name of the job.
+        :param workload: The workload.
+        :param scheduler: The scheduler.
+        :param device: The device.
+        :param metrics: The metrics.
+        """
+        fig = plt.figure()
+
+        slat = float(metrics['slat'])
+        clat = float(metrics['clat'])
+        fslat = float(metrics['fslat'])
+        bslat = float(metrics['bslat'])
+        d2c = float(metrics['d2c'])
+        iops = float(metrics['iops'])
+        throughput = float(metrics['throughput'])
+
+        device_short = Mem.re_device.findall(self.device)[0]
+        # Latency graph
+        N = 1
+        ind = np.arange(N)
+        width = 0.35
+
+        p1 = plt.bar(ind, slat, width, color='green')
+        p2 = plt.bar(ind, fslat, width, bottom=slat, color='orange')
+        p3 = plt.bar(ind, bslat, width, bottom=slat+fslat, color='blue')
+        # p4 = plt.bar(ind, d2c, width, bottom=slat+fslat+bslat, color='red')
+
+        plt.ylabel('Latency (µs)')
+        plt.title(device_short+'_'+job_name+'_'+workload)
+        plt.xticks(ind, scheduler)
+        plt.yticks(np.arange(0,(slat+fslat+bslat)+(slat+fslat+bslat)/10,(slat+fslat+bslat)/10))
+        plt.legend((p1[0], p2[0], p3[0]), ('Submission Latency (user time)', 'File System Latency', 'Block Layer'))
+        # plt.legend((p1[0], p2[0], p3[0], p4[0]), ('Submission Latency (user time)', 'File System Latency', 'Block Layer', 'Device Latency))
+
+        fig.savefig(device_short+'_'+scheduler+'_'+'latency.png', transparent=False, dpi=80, bbox_inches="tight")
+        plt.clf()
+
+        # IOPS graph
+        p1 = plt.bar(ind, iops, width, color='green')
+
+        plt.ylabel('Operations')
+        plt.title(device_short + '_' + job_name + '_' + workload)
+        plt.xticks(ind, scheduler)
+        plt.yticks(np.arange(0, iops+(iops/10), (iops/10)))
+        # plt.legend(p1[0], ('IOPS'))
+
+        fig.savefig(device_short+'_'+scheduler+'_'+'iops.png', transparent=False, dpi=80, bbox_inches="tight")
+        plt.clf()
+
+        # Throughput graph
+        throughputMB = throughput/1024
+        p1 = plt.bar(ind, throughputMB, width, color='red')
+
+        plt.ylabel('Bandwidth (MB)')
+        plt.title(device_short + '_' + job_name + '_' + workload)
+        plt.xticks(ind, scheduler)
+        plt.yticks(np.arange(0, throughputMB + (throughputMB / 10), (throughputMB / 10)))
+        # plt.legend(p1[0], ('Throughput [1024 B/s]'))
+
+        fig.savefig(device_short+'_'+scheduler+'_'+'throughput.png', transparent=False, dpi=80, bbox_inches="tight")
+        plt.clf()
+
+    @staticmethod
     def print(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
         """Prints metric information to STDOUT.
 
@@ -712,26 +798,19 @@ class Metrics:
         :param device: The device.
         :param metrics: The metrics.
         """
-        metrics = defaultdict(int, metrics)
-        slat = Metrics.average_metric(metrics, ('slat-read', 'slat-write'))
-        clat = Metrics.average_metric(metrics, ('clat-read', 'clat-write'))
-        fslat = clat - metrics['q2c']
-        bslat = metrics['q2c'] - metrics['d2c']
-        throughput = Metrics.average_metric(metrics, ('throughput-read', 'throughput-write'))
-        iops = Metrics.average_metric(metrics, ('iops-read', 'iops-write'))
 
         print_output('%s [%s]:' % (job_name, workload))
         print_output('  (%s) (%s):' % (scheduler, device))
         print_output('    Submission Latency [µs]: %s (read): %s (write): %s' %
-                     (slat, metrics['slat-read'], metrics['slat-write']))
+                     (metrics['slat'], metrics['slat-read'], metrics['slat-write']))
         print_output('    Completion Latency [µs]: %s (read): %s (write): %s' %
-                     (clat, metrics['clat-read'], metrics['clat-write']))
-        print_output('    File System Latency [µs]: %s' % fslat)
-        print_output('    Block Layer Latency [µs]: %s' % bslat)
+                     (metrics['clat'], metrics['clat-read'], metrics['clat-write']))
+        print_output('    File System Latency [µs]: %s' % metrics['fslat'])
+        print_output('    Block Layer Latency [µs]: %s' % metrics['bslat'])
         print_output('    Device Latency [µs]: %s' % metrics['d2c'])
-        print_output('    IOPS: %s (read) %s (write) %s' % (iops, metrics['iops-read'], metrics['iops-write']))
+        print_output('    IOPS: %s (read) %s (write) %s' % (metrics['iops'], metrics['iops-read'], metrics['iops-write']))
         print_output('    Throughput [1024 B/s]: %s (read) %s (write) %s' %
-                     (throughput, metrics['throughput-read'], metrics['throughput-write']))
+                     (metrics['throughput'], metrics['throughput-read'], metrics['throughput-write']))
 # endregion
 
 
@@ -1361,7 +1440,7 @@ def main(argv: list):
         sys.exit(1)
 
     # Remove previous files
-    if os.path.isfile(Mem.output_file):
+    if Mem.output_file and os.path.isfile(Mem.output_file):
         log('Deleting existing output file: %s' % Mem.output_file)
         os.remove(Mem.output_file)
 
