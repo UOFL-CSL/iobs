@@ -801,15 +801,15 @@ class Metrics:
 
         print_output('%s [%s]:' % (job_name, workload))
         print_output('  (%s) (%s):' % (scheduler, device))
-        print_output('    Submission Latency [µs]: %s (read): %s (write): %s' %
+        print_output('    Submission Latency [µs]: %.2f (read): %.2f (write): %.2f' %
                      (metrics['slat'], metrics['slat-read'], metrics['slat-write']))
-        print_output('    Completion Latency [µs]: %s (read): %s (write): %s' %
+        print_output('    Completion Latency [µs]: %.2f (read): %.2f (write): %.2f' %
                      (metrics['clat'], metrics['clat-read'], metrics['clat-write']))
-        print_output('    File System Latency [µs]: %s' % metrics['fslat'])
-        print_output('    Block Layer Latency [µs]: %s' % metrics['bslat'])
-        print_output('    Device Latency [µs]: %s' % metrics['d2c'])
-        print_output('    IOPS: %s (read) %s (write) %s' % (metrics['iops'], metrics['iops-read'], metrics['iops-write']))
-        print_output('    Throughput [1024 B/s]: %s (read) %s (write) %s' %
+        print_output('    File System Latency [µs]: %.2f' % metrics['fslat'])
+        print_output('    Block Layer Latency [µs]: %.2f' % metrics['bslat'])
+        print_output('    Device Latency [µs]: %.2f' % metrics['d2c'])
+        print_output('    IOPS: %.2f (read) %.2f (write) %.2f' % (metrics['iops'], metrics['iops-read'], metrics['iops-write']))
+        print_output('    Throughput [1024 B/s]: %.2f (read) %.2f (write) %.2f' %
                      (metrics['throughput'], metrics['throughput-read'], metrics['throughput-write']))
 
 
