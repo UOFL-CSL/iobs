@@ -433,9 +433,9 @@ class Job:
             metrics['throughput'] = throughput
             metrics['iops'] = iops
 
-            Metrics.graph(self.name, self.workload, scheduler, self.device, metrics)
-
             Metrics.print(self.name, self.workload, scheduler, self.device, metrics)
+
+            Metrics.graph(self.name, self.workload, scheduler, self.device, metrics)
 
         return True
 
@@ -644,28 +644,44 @@ class Metrics:
 
             for job in data['jobs']:
                 ret['bandwidth-read'] += float(job['read']['bw'])
-                if job['read']['bw'] > 0: bwrc += 1
+                if job['read']['bw'] > 0:
+                    bwrc += 1
+                    log('Grabbing metric %s: %s' % ('bandwidth-read', job['read']['bw']))
 
                 ret['bandwidth-write'] += float(job['write']['bw'])
-                if job['write']['bw'] > 0: bwwc += 1
+                if job['write']['bw'] > 0:
+                    bwwc += 1
+                    log('Grabbing metric %s: %s' % ('bandwidth-write', job['write']['bw']))
 
                 ret['clat-read'] += float(job['read']['clat']['mean'])
-                if job['read']['clat']['mean'] > 0: crc += 1
+                if job['read']['clat']['mean'] > 0:
+                    crc += 1
+                    log('Grabbing metric %s: %s' % ('clat-read', job['read']['clat']['mean']))
 
                 ret['clat-write'] += float(job['write']['clat']['mean'])
-                if job['write']['clat']['mean'] > 0: cwc += 1
+                if job['write']['clat']['mean'] > 0:
+                    cwc += 1
+                    log('Grabbing metric %s: %s' % ('clat-write', job['write']['clat']['mean']))
 
                 ret['slat-read'] += float(job['read']['slat']['mean'])
-                if job['write']['slat']['mean'] > 0: src += 1
+                if job['write']['slat']['mean'] > 0:
+                    src += 1
+                    log('Grabbing metric %s: %s' % ('slat-read', job['read']['slat']['mean']))
 
                 ret['slat-write'] += float(job['write']['slat']['mean'])
-                if job['write']['slat']['mean'] > 0: swc += 1
+                if job['write']['slat']['mean'] > 0:
+                    swc += 1
+                    log('Grabbing metric %s: %s' % ('slat-write', job['read']['slat']['write']))
 
                 ret['iops-read'] += float(job['read']['iops'])
-                if job['read']['iops'] > 0: iopsr += 1
+                if job['read']['iops'] > 0:
+                    iopsr += 1
+                    log('Grabbing metric %s: %s' % ('iops-read', job['read']['iops']))
 
                 ret['iops-write'] += float(job['write']['iops'])
-                if job['write']['iops'] > 0: iopsw += 1
+                if job['write']['iops'] > 0:
+                    iopsw += 1
+                    log('Grabbing metric %s: %s' % ('iops-write', job['write']['bw']))
 
             # Compute averages
             if bwrc > 0: ret['bandwidth-read'] /= bwrc
@@ -699,22 +715,26 @@ class Metrics:
 
         if throughput_read:
             metrics['throughput-read'] = float(throughput_read[0])
+            log('Grabbing metric %s: %s' % ('throughput-read', metrics['throughput-read']))
 
         throughput_write = Mem.re_blkparse_throughput_write.findall(blkparse_out)
 
         if throughput_write:
             metrics['throughput-write'] = float(throughput_write[0])
+            log('Grabbing metric %s: %s' % ('throughput-write', metrics['throughput-write']))
 
         # btt
         d2c = Mem.re_btt_d2c.findall(btt_out)
 
         if d2c:
             metrics['d2c'] = float(d2c[0]) * 10**6  # µs
+            log('Grabbing metric %s: %s' % ('d2c', metrics['d2c']))
 
         q2c = Mem.re_btt_q2c.findall(btt_out)
 
         if q2c:
             metrics['q2c'] = float(q2c[0]) * 10**6  # µs
+            log('Grabbing metric %s: %s' % ('q2c', metrics['q2c']))
 
         workload_metrics = Metrics.gather_workload_metrics(workload_out, workload)
 
