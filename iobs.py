@@ -1476,6 +1476,11 @@ def print_processes(processes: set):
 
 @log_around('Beginning program execution', 'Finishing program execution', 'Program encountered critical error')
 def main(argv: list):
+    # Help flag dominates all args
+    if '-h' in argv:
+        usage()
+        sys.exit(1)
+
     # Validate privileges
     if os.getuid() != 0:
         print('Script must be run with administrative privileges. Try sudo %s' % __file__)
