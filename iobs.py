@@ -433,7 +433,7 @@ class Job:
             metrics['throughput'] = throughput
             metrics['iops'] = iops
 
-            Metrics.graph(self, self.name, self.workload, scheduler, metrics)
+            Metrics.graph(self.name, self.workload, scheduler, self.device, metrics)
 
             Metrics.print(self.name, self.workload, scheduler, self.device, metrics)
 
@@ -723,7 +723,7 @@ class Metrics:
         return metrics
 
     @staticmethod
-    def graph(self, job_name: str, workload: str, scheduler: str, metrics: dict):
+    def graph(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
         """Graphs all metrics
 
         :param job_name: The name of the job.
@@ -742,7 +742,7 @@ class Metrics:
         iops = float(metrics['iops'])
         throughput = float(metrics['throughput'])
 
-        device_short = Mem.re_device.findall(self.device)[0]
+        device_short = Mem.re_device.findall(device)[0]
         # Latency graph
         N = 1
         ind = np.arange(N)
@@ -811,6 +811,81 @@ class Metrics:
         print_output('    IOPS: %s (read) %s (write) %s' % (metrics['iops'], metrics['iops-read'], metrics['iops-write']))
         print_output('    Throughput [1024 B/s]: %s (read) %s (write) %s' %
                      (metrics['throughput'], metrics['throughput-read'], metrics['throughput-write']))
+
+
+class MetricsStore:
+    """A datastore for saving / retrieving metrics."""
+
+    def __init__(self):
+        self._store = dict()
+
+    def __contains__(self, item):
+        return item in self._store
+
+    def __len__(self):
+        return len(self._store)
+
+    def add(self, workload: str, device: str, scheduler: str):
+        """Adds a new key to the datastore.
+
+        :param workload: The workload.
+        :param device: The device.
+        :param scheduler: The scheduler.
+        """
+        key = (workload, device, scheduler)
+        if key not in self._store:
+            self._store[key] = {'workload': workload, 'device': device, 'scheduler': scheduler, 'key': key}
+
+    def get(self, workload: str, device: str, scheduler: str):
+        """Retrieves a single item matching the given key.
+
+        :param workload: The workload.
+        :param device: The device.
+        :param scheduler: The scheduler.
+        :return: The retrieved item.
+        :exception KeyError: Raised if key not found.
+        """
+        key = (workload, device, scheduler)
+        if key not in self._store:
+            raise KeyError("Unable to find key: (%s, %s, %s)" % (workload, device, scheduler))
+
+        return self._store[key]
+
+    def get_all(self, **kwargs):
+        """Retrieves all items with keys matching the given optional kwargs (workload, device, scheduler).
+
+        :param kwargs: The following optional kwargs can be specified for lookups (workload, device, scheduler). Only
+            the specified key parts will be matched on. If none are specified, all items are retrieved.
+        :return: A list of matched items.
+        """
+        workload = None
+        if 'workload' in kwargs:
+            workload = kwargs['workload']
+
+        device = None
+        if 'device' in kwargs:
+            device = kwargs['device']
+
+        scheduler = None
+        if 'scheduler' in kwargs:
+            scheduler = kwargs['scheduler']
+
+        items = []
+
+        for key, value in self._store.items():
+            if workload and key[0] != workload:
+                continue
+
+            if device and key[1] != device:
+                continue
+
+            if scheduler and key[2] != scheduler:
+                continue
+
+            items.append(value)
+
+        return items
+
 # endregion
 
 
