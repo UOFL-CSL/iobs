@@ -191,23 +191,23 @@ class Mem:
         self.GLOBAL_HEADER = 'global'
 
         # Settings
-        self.cleanup: bool = False
-        self.config_file: str = None
-        self.continue_on_failure: bool = False
-        self.jobs: list = []
-        self.log: bool = False
-        self.output_file: str = None
-        self.retry: int = 1
-        self.verbose: bool = False
+        self.cleanup = False
+        self.config_file = None
+        self.continue_on_failure = False
+        self.jobs = []
+        self.log = False
+        self.output_file = None
+        self.retry = 1
+        self.verbose = False
 
         # Global Job Settings
-        self._command: str = None
-        self._delay: int = 0
-        self._device: str = None
-        self._repetition: int = 1
-        self._runtime: int = None
-        self._schedulers: set = None
-        self._workload: str = None
+        self._command = None
+        self._delay = 0
+        self._device = None
+        self._repetition = 1
+        self._runtime = None
+        self._schedulers = None
+        self._workload = None
 
         # Formatters
         self.format_blktrace = 'blktrace -d %s -o %s -w %s'  # device, file prefix, runtime
@@ -215,8 +215,8 @@ class Mem:
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
 
         # Regex
-        self.re_blkparse_throughput_read = re.compile(f'Throughput \(R/W\): (\d+)[a-zA-Z]+/s')
-        self.re_blkparse_throughput_write = re.compile(f'Throughput \(R/W\): (?:\d+)[a-zA-Z]+/s / (\d+)[a-zA-z]+/s')
+        self.re_blkparse_throughput_read = re.compile(r'Throughput \(R/W\): (\d+)[a-zA-Z]+/s')
+        self.re_blkparse_throughput_write = re.compile(r'Throughput \(R/W\): (?:\d+)[a-zA-Z]+/s / (\d+)[a-zA-z]+/s')
         self.re_btt_d2c = re.compile(r'D2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_btt_q2c = re.compile(r'Q2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)')
         self.re_device = re.compile(r'/dev/(.*)')
@@ -319,14 +319,14 @@ class Job:
     """A single job, which is representative of a single workload to be run."""
 
     def __init__(self, name: str):
-        self._name: str = name
-        self._command: str = None
-        self._delay: int = None
-        self._device: str = None
-        self._repetition: int = None
-        self._runtime: int = None
-        self._schedulers: set = None
-        self._workload: str = None
+        self._name = name
+        self._command = None
+        self._delay = None
+        self._device = None
+        self._repetition = None
+        self._runtime = None
+        self._schedulers = None
+        self._workload = None
 
     @property
     def name(self) -> str:
@@ -573,8 +573,8 @@ class Metrics:
     """A group of metrics for a particular workload."""
 
     def __init__(self, workload: str):
-        self.workload: str = workload
-        self._metrics: list = []
+        self.workload = workload
+        self._metrics = []
 
     def add_metrics(self, metrics: dict):
         """Adds new metrics.
@@ -1476,6 +1476,11 @@ def print_processes(processes: set):
 
 @log_around('Beginning program execution', 'Finishing program execution', 'Program encountered critical error')
 def main(argv: list):
+    # Validate privileges
+    if os.getuid() != 0:
+        print('Script must be run with administrative privileges. Try sudo %s' % __file__)
+        sys.exit(1)
+
     # Set logging as early as possible
     if '-l' in argv:
         logging.basicConfig(filename='iobs.log', level=logging.DEBUG, format='%(asctime)s - %(message)s')
@@ -1483,11 +1488,6 @@ def main(argv: list):
 
     if '-v' in argv:
         Mem.verbose = True
-
-    # Validate privileges
-    if os.getuid() != 0:
-        print_detailed('Script must be run with administrative privileges. Try sudo %s' % __file__)
-        sys.exit(1)
 
     # Validate os
     ps = platform.system()
