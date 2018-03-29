@@ -519,6 +519,9 @@ class Job:
             while retry < Mem.retry:
                 retry += 1
 
+                # Clear all the things
+                clear_caches()
+
                 # Run workload along with blktrace
                 blktrace = Mem.format_blktrace % (self.device, device_short, self.runtime)
 
@@ -968,6 +971,24 @@ def cleanup_files(*files):
         log('Removing files %s' % file)
         run_system_command('rm -f %s' % file)
 
+
+@log_around(before_message='Clearing caches', exception_message='Unable to clear caches')
+def clear_caches(device: str):
+    """Clears various data caches. Should be run before each benchmark.
+
+    :param device: The device to clear the caches for.
+    """
+    # Writes any data buffered in memory out to disk
+    run_system_command('sync')
+
+    # Drops clean caches
+    run_system_command('echo 3 > /proc/sys/vm/drop_caches')
+
+    # Calls block device ioctls to flush buffers
+    run_system_command('blockdev --flushbufs %s' % device)
+
+    # Flushes the on-drive write cache buffer
+    run_system_command('hdparm -F %s' % device)
 
 @log_around(after_message='Verified dependency exists',
             exception_message='Missing dependency',
