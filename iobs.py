@@ -520,7 +520,7 @@ class Job:
                 retry += 1
 
                 # Clear all the things
-                clear_caches()
+                clear_caches(self.device)
 
                 # Run workload along with blktrace
                 blktrace = Mem.format_blktrace % (self.device, device_short, self.runtime)
