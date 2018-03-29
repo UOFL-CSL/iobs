@@ -965,7 +965,7 @@ def command_exists(command: str) -> bool:
     return rc == 0
 
 
-@log_around('Unable to retrieve major,minor information', ret_validity=True)
+@log_around(exception_message='Unable to retrieve major,minor information', ret_validity=True)
 def get_device_major_minor(device: str) -> str:
     """Returns a string of the major, minor of a given device.
 
