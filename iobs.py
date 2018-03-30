@@ -667,14 +667,14 @@ class Metrics:
                     log('Grabbing metric %s: %s' % ('clat-write', job['write']['clat']['mean']))
 
                 ret['slat-read'] += float(job['read']['slat']['mean'])
-                if job['write']['slat']['mean'] > 0:
+                if job['read']['slat']['mean'] > 0:
                     src += 1
                     log('Grabbing metric %s: %s' % ('slat-read', job['read']['slat']['mean']))
 
                 ret['slat-write'] += float(job['write']['slat']['mean'])
                 if job['write']['slat']['mean'] > 0:
                     swc += 1
-                    log('Grabbing metric %s: %s' % ('slat-write', job['read']['slat']['write']))
+                    log('Grabbing metric %s: %s' % ('slat-write', job['write']['slat']['mean']))
 
                 ret['iops-read'] += float(job['read']['iops'])
                 if job['read']['iops'] > 0:
@@ -684,7 +684,7 @@ class Metrics:
                 ret['iops-write'] += float(job['write']['iops'])
                 if job['write']['iops'] > 0:
                     iopsw += 1
-                    log('Grabbing metric %s: %s' % ('iops-write', job['write']['bw']))
+                    log('Grabbing metric %s: %s' % ('iops-write', job['write']['iops']))
 
             # Compute averages
             if bwrc > 0: ret['bandwidth-read'] /= bwrc
