@@ -2,10 +2,9 @@
 device=/dev/sda
 repetition=3
 runtime=10
-schedulers=noop,deadline
-
-# FIO Workloads
-[fio-random-read]
+schedulers=cfq,noop,deadline
 delay=1
 workload=fio
+
+[fio-random-read]
 command=fio examples/fio/fio-seq-read.job

@@ -1,16 +1,16 @@
 # Borrowed from https://github.com/axboe/fio/blob/master/examples/fio-seq-read.job
 
 [global]
-name=fio-seq-reads
-filename=fio-seq-reads
-rw=read
+name=fio-rand-reads
+filename=fio-rand-reads
+rw=randread
 bs=1024K
 direct=1
 numjobs=1
 time_based=1
 runtime=30
 
-[sr]
+[rr]
 size=10G
 ioengine=libaio
 iodepth=32
