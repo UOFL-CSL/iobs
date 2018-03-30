@@ -245,7 +245,7 @@ class Mem:
         if conv_value < 1:
             raise ValueError('Delay given is < 0: %s' % value)
 
-        self._delay = value
+        self._delay = conv_value
 
     @property
     def device(self) -> str:
