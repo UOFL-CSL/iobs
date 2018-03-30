@@ -6,5 +6,14 @@ schedulers=cfq,noop,deadline
 delay=1
 workload=fio
 
-[fio-random-read]
+[fio-sequential-read]
 command=fio examples/fio/fio-seq-read.job
+
+[fio-sequential-write]
+command=fio examples/fio/fio-seq-write.job
+
+[fio-random-read]
+command=fio examples/fio/fio-rand-read.job
+
+[fio-random-write]
+command=fio examples/fio/fio-rand-write.job
