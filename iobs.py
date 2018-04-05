@@ -40,6 +40,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 
 # region utils
@@ -411,6 +412,8 @@ class Job:
         """
         log('Executing job %s' % self.name)
 
+        metrics_store = MetricsStore()
+
         for scheduler in self.schedulers:
 
             if not change_scheduler(scheduler, self.device):
@@ -420,22 +423,19 @@ class Job:
             metrics = self._execute_workload()
 
             metrics = defaultdict(int, metrics)
-            slat = Metrics.average_metric(metrics, ('slat-read', 'slat-write'))
-            clat = Metrics.average_metric(metrics, ('clat-read', 'clat-write'))
-            fslat = clat - metrics['q2c']
-            bslat = metrics['q2c'] - metrics['d2c']
-            throughput = Metrics.average_metric(metrics, ('throughput-read', 'throughput-write'))
-            iops = Metrics.average_metric(metrics, ('iops-read', 'iops-write'))
-            metrics['slat'] = slat
-            metrics['clat'] = clat
-            metrics['fslat'] = fslat
-            metrics['bslat'] = bslat
-            metrics['throughput'] = throughput
-            metrics['iops'] = iops
+            metrics['slat'] = Metrics.average_metric(metrics, ('slat-read', 'slat-write'))
+            metrics['clat'] = Metrics.average_metric(metrics, ('clat-read', 'clat-write'))
+            metrics['fslat'] = metrics['clat'] - metrics['q2c']
+            metrics['bslat'] = metrics['q2c'] - metrics['d2c']
+            metrics['throughput'] = Metrics.average_metric(metrics, ('throughput-read', 'throughput-write'))
+            metrics['iops'] = Metrics.average_metric(metrics, ('iops-read', 'iops-write'))
 
             Metrics.print(self.name, self.workload, scheduler, self.device, metrics)
 
-            Metrics.graph(self.name, self.workload, scheduler, self.device, metrics)
+            device_short = Mem.re_device.findall(self.device)[0]
+            metrics_store.add(self.workload, device_short, scheduler, metrics)
+
+        Metrics.graph(self.name, metrics_store)
 
         return True
 
@@ -570,6 +570,82 @@ class Job:
             metrics.add_metrics(m)
 
         return metrics.average_metrics()
+
+
+class MetricsStore:
+    """A datastore for saving / retrieving metrics."""
+
+    def __init__(self):
+        self._store = dict()
+
+    def __contains__(self, item):
+        return item in self._store
+
+    def __len__(self):
+        return len(self._store)
+
+    def add(self, workload: str, device: str, scheduler: str, metrics: dict):
+        """Adds a new key to the datastore.
+
+        :param workload: The workload.
+        :param device: The device.
+        :param scheduler: The scheduler.
+        :param metrics: The metrics.
+        """
+        key = (workload, device, scheduler)
+        if key not in self._store:
+            self._store[key] = {'workload': workload, 'device': device, 'scheduler': scheduler, 'key': key,
+                                'metrics': metrics}
+
+    def get(self, workload: str, device: str, scheduler: str):
+        """Retrieves a single item matching the given key.
+
+        :param workload: The workload.
+        :param device: The device.
+        :param scheduler: The scheduler.
+        :return: The retrieved item.
+        :exception KeyError: Raised if key not found.
+        """
+        key = (workload, device, scheduler)
+        if key not in self._store:
+            raise KeyError("Unable to find key: (%s, %s, %s)" % (workload, device, scheduler))
+
+        return self._store[key]
+
+    def get_all(self, **kwargs):
+        """Retrieves all items with keys matching the given optional kwargs (workload, device, scheduler).
+
+        :param kwargs: The following optional kwargs can be specified for lookups (workload, device, scheduler). Only
+            the specified key parts will be matched on. If none are specified, all items are retrieved.
+        :return: A list of matched items.
+        """
+        workload = None
+        if 'workload' in kwargs:
+            workload = kwargs['workload']
+
+        device = None
+        if 'device' in kwargs:
+            device = kwargs['device']
+
+        scheduler = None
+        if 'scheduler' in kwargs:
+            scheduler = kwargs['scheduler']
+
+        items = []
+
+        for key, value in self._store.items():
+            if workload and key[0] != workload:
+                continue
+
+            if device and key[1] != device:
+                continue
+
+            if scheduler and key[2] != scheduler:
+                continue
+
+            items.append(value)
+
+        return items
 
 
 class Metrics:
@@ -746,70 +822,261 @@ class Metrics:
         return metrics
 
     @staticmethod
-    def graph(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
+    def graph(job_name: str, metrics_store: MetricsStore):
         """Graphs all metrics
 
         :param job_name: The name of the job.
-        :param workload: The workload.
-        :param scheduler: The scheduler.
-        :param device: The device.
-        :param metrics: The metrics.
+        :param metrics_store: The metrics.
         """
         fig = plt.figure()
 
-        slat = float(metrics['slat'])
-        clat = float(metrics['clat'])
-        fslat = float(metrics['fslat'])
-        bslat = float(metrics['bslat'])
-        d2c = float(metrics['d2c'])
-        iops = float(metrics['iops'])
-        throughput = float(metrics['throughput'])
+        metrics = metrics_store.get_all()
 
-        device_short = Mem.re_device.findall(device)[0]
-        # Latency graph
-        N = 1
-        ind = np.arange(N)
-        width = 0.35
+        graph_metrics = []
+        for metric in metrics:
+            values = dict()
 
-        p1 = plt.bar(ind, slat, width, color='green')
-        p2 = plt.bar(ind, fslat, width, bottom=slat, color='orange')
-        p3 = plt.bar(ind, bslat, width, bottom=slat+fslat, color='blue')
-        # p4 = plt.bar(ind, d2c, width, bottom=slat+fslat+bslat, color='red')
+            slat = float(metric['metrics']['slat'])
+            clat = float(metric['metrics']['clat'])
+            fslat = float(metric['metrics']['fslat'])
+            bslat = float(metric['metrics']['bslat'])
+            throughput = float(metric['metrics']['throughput'])
+            values['iops'] = float(metric['metrics']['iops'])
+            values['device'] = metric['device']
+            values['workload'] = metric['workload']
+            values['scheduler'] = metric['scheduler']
 
-        plt.ylabel('Latency (µs)')
-        plt.title(device_short+'_'+job_name+'_'+workload)
-        plt.xticks(ind, scheduler)
-        plt.yticks(np.arange(0,(slat+fslat+bslat)+(slat+fslat+bslat)/10,(slat+fslat+bslat)/10))
-        plt.legend((p1[0], p2[0], p3[0]), ('Submission Latency (user time)', 'File System Latency', 'Block Layer'))
-        # plt.legend((p1[0], p2[0], p3[0], p4[0]), ('Submission Latency (user time)', 'File System Latency', 'Block Layer', 'Device Latency))
+            total = slat+clat
+            values['total'] = total
+            values['bar_total'] = slat+fslat+bslat
+            values['percent'] = ((slat+fslat+bslat)/total)*100
+            values['slat_percent'] = (slat/total)*100
+            values['fslat_percent'] = (fslat/total)*100
+            values['bslat_percent'] = (bslat/total)*100
+            values['throughput_MB'] = throughput/1024
 
-        fig.savefig(device_short+'_'+scheduler+'_'+'latency.png', transparent=False, dpi=80, bbox_inches="tight")
-        plt.clf()
+            graph_metrics.append(values)
 
-        # IOPS graph
-        p1 = plt.bar(ind, iops, width, color='green')
+        num_bars = len(graph_metrics)
 
-        plt.ylabel('Operations')
-        plt.title(device_short + '_' + job_name + '_' + workload)
-        plt.xticks(ind, scheduler)
-        plt.yticks(np.arange(0, iops+(iops/10), (iops/10)))
-        # plt.legend(p1[0], ('IOPS'))
+        if num_bars == 0:
+            log('No data to graph.')
+            return
+        elif num_bars == 1:
+            ind = np.arange(num_bars)
+            width = 0.35
+            ax = fig.add_subplot(1, 1, 1)
+            ax.yaxis.set_major_formatter(ticker.PercentFormatter())
 
-        fig.savefig(device_short+'_'+scheduler+'_'+'iops.png', transparent=False, dpi=80, bbox_inches="tight")
-        plt.clf()
+            # Latency graph
+            p1 = plt.bar(ind, graph_metrics[0]['slat_percent'], width, color='orange')
+            p2 = plt.bar(ind, graph_metrics[0]['fslat_percent'], width,
+                         bottom=graph_metrics[0]['slat_percent'], color='blue', hatch='/')
+            p3 = plt.bar(ind, graph_metrics[0]['bslat_percent'], width,
+                         bottom=graph_metrics[0]['slat_percent']+graph_metrics[0]['fslat_percent'], color='green')
 
-        # Throughput graph
-        throughputMB = throughput/1024
-        p1 = plt.bar(ind, throughputMB, width, color='red')
+            plt.ylabel('% Total I/O Access Latency')
+            plt.title(graph_metrics[0]['device']+'_'+job_name+'_'+'latency')
+            plt.xticks(ind, graph_metrics[0]['scheduler'])
+            plt.yticks(np.arange(0, graph_metrics[0]['percent']+(graph_metrics[0]['percent']/2), (graph_metrics[0]['percent']/6)))
+            plt.legend((p1, p2, p3), ('Submission (user time)', 'File System', 'Block Layer'), mode="expand", loc=2, ncol=3)
 
-        plt.ylabel('Bandwidth (MB)')
-        plt.title(device_short + '_' + job_name + '_' + workload)
-        plt.xticks(ind, scheduler)
-        plt.yticks(np.arange(0, throughputMB + (throughputMB / 10), (throughputMB / 10)))
-        # plt.legend(p1[0], ('Throughput [1024 B/s]'))
+            fig.savefig(graph_metrics[0]['device']+'_'+job_name+'_'+graph_metrics[0]['scheduler']+'_'+'latency.png',
+                        transparent=False, dpi=80, bbox_inches="tight")
+            plt.clf()
 
-        fig.savefig(device_short+'_'+scheduler+'_'+'throughput.png', transparent=False, dpi=80, bbox_inches="tight")
-        plt.clf()
+            # IOPS graph
+            plt.bar(ind, graph_metrics[0]['iops'], width, color='green')
+
+            plt.ylabel('Operations')
+            plt.title(graph_metrics[0]['device']+'_'+job_name+'_'+'iops')
+            plt.xticks(ind, graph_metrics[0]['scheduler'])
+            plt.yticks(np.arange(0, graph_metrics[0]['iops']+(graph_metrics[0]['iops']/2),
+                                 (graph_metrics[0]['iops']/6)))
+
+            fig.savefig(graph_metrics[0]['device']+'_'+job_name+'_'+graph_metrics[0]['scheduler']+'_'+'iops.png',
+                        transparent=False, dpi=80, bbox_inches="tight")
+            plt.clf()
+
+            # Throughput graph
+            plt.bar(ind, graph_metrics[0]['throughput_MB'], width, color='red', hatch='/')
+
+            plt.ylabel('Bandwidth (MB/s)')
+            plt.title(graph_metrics[0]['device']+'_'+job_name+'_'+'throughput')
+            plt.xticks(ind, graph_metrics[0]['scheduler'])
+            plt.yticks(np.arange(0, graph_metrics[0]['throughput_MB']+(graph_metrics[0]['throughput_MB']/2),
+                                 (graph_metrics[0]['throughput_MB']/6)))
+
+            fig.savefig(graph_metrics[0]['device']+'_'+job_name+'_'+graph_metrics[0]['scheduler']+'_'+'throughput.png',
+                        transparent=False, dpi=80, bbox_inches="tight")
+            plt.clf()
+        elif num_bars > 1:
+            ind = np.arange(num_bars)
+            width = 0.35
+            ax = fig.add_subplot(1, 1, 1)
+            ax.yaxis.set_major_formatter(ticker.PercentFormatter())
+
+            # Latency graph
+            if num_bars == 2:
+                max_percent = max(graph_metrics[0]['percent'], graph_metrics[1]['percent'])
+                slat_set = np.array((graph_metrics[0]['slat_percent'], graph_metrics[1]['slat_percent']))
+                fslat_set = np.array((graph_metrics[0]['fslat_percent'], graph_metrics[1]['fslat_percent']))
+                bslat_set = np.array((graph_metrics[0]['bslat_percent'], graph_metrics[1]['bslat_percent']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler']))
+            elif num_bars == 3:
+                max_percent = max(graph_metrics[0]['percent'], graph_metrics[1]['percent'], graph_metrics[2]['percent'])
+                slat_set = np.array((graph_metrics[0]['slat_percent'], graph_metrics[1]['slat_percent'],
+                                     graph_metrics[2]['slat_percent']))
+                fslat_set = np.array((graph_metrics[0]['fslat_percent'], graph_metrics[1]['fslat_percent'],
+                                      graph_metrics[2]['fslat_percent']))
+                bslat_set = np.array((graph_metrics[0]['bslat_percent'], graph_metrics[1]['bslat_percent'],
+                                      graph_metrics[2]['bslat_percent']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler']))
+            elif num_bars == 4:
+                max_percent = max(graph_metrics[0]['percent'], graph_metrics[1]['percent'], graph_metrics[2]['percent'],
+                                  graph_metrics[3]['percent'])
+                slat_set = np.array((graph_metrics[0]['slat_percent'], graph_metrics[1]['slat_percent'],
+                                     graph_metrics[2]['slat_percent'], graph_metrics[3]['slat_percent']))
+                fslat_set = np.array((graph_metrics[0]['fslat_percent'], graph_metrics[1]['fslat_percent'],
+                                      graph_metrics[2]['fslat_percent'], graph_metrics[3]['fslat_percent']))
+                bslat_set = np.array((graph_metrics[0]['bslat_percent'], graph_metrics[1]['bslat_percent'],
+                                      graph_metrics[2]['bslat_percent'], graph_metrics[3]['bslat_percent']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler']))
+            elif num_bars == 5:
+                max_percent = max(graph_metrics[0]['percent'], graph_metrics[1]['percent'], graph_metrics[2]['percent'],
+                                  graph_metrics[3]['percent'], graph_metrics[4]['percent'])
+                slat_set = np.array((graph_metrics[0]['slat_percent'], graph_metrics[1]['slat_percent'],
+                                     graph_metrics[2]['slat_percent'], graph_metrics[3]['slat_percent'],
+                                     graph_metrics[4]['slat_percent']))
+                fslat_set = np.array((graph_metrics[0]['fslat_percent'], graph_metrics[1]['fslat_percent'],
+                                      graph_metrics[2]['fslat_percent'], graph_metrics[3]['fslat_percent'],
+                                      graph_metrics[4]['fslat_percent']))
+                bslat_set = np.array((graph_metrics[0]['bslat_percent'], graph_metrics[1]['bslat_percent'],
+                                      graph_metrics[2]['bslat_percent'], graph_metrics[3]['bslat_percent'],
+                                      graph_metrics[4]['bslat_percent']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler'],
+                                 graph_metrics[4]['scheduler']))
+            elif num_bars > 5:
+                max_percent = max(graph_metrics[0]['percent'], graph_metrics[1]['percent'], graph_metrics[2]['percent'],
+                                  graph_metrics[3]['percent'], graph_metrics[4]['percent'], graph_metrics[5]['percent'])
+                slat_set = np.array((graph_metrics[0]['slat_percent'], graph_metrics[1]['slat_percent'],
+                                     graph_metrics[2]['slat_percent'], graph_metrics[3]['slat_percent'],
+                                     graph_metrics[4]['slat_percent'], graph_metrics[5]['slat_percent']))
+                fslat_set = np.array((graph_metrics[0]['fslat_percent'], graph_metrics[1]['fslat_percent'],
+                                      graph_metrics[2]['fslat_percent'], graph_metrics[3]['fslat_percent'],
+                                      graph_metrics[4]['fslat_percent'], graph_metrics[5]['fslat_percent']))
+                bslat_set = np.array((graph_metrics[0]['bslat_percent'], graph_metrics[1]['bslat_percent'],
+                                      graph_metrics[2]['bslat_percent'], graph_metrics[3]['bslat_percent'],
+                                      graph_metrics[4]['bslat_percent'], graph_metrics[5]['bslat_percent']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler'],
+                                 graph_metrics[4]['scheduler'], graph_metrics[5]['scheduler']))
+
+
+            p1 = plt.bar(ind, slat_set, width, color='orange')
+            p2 = plt.bar(ind, fslat_set, width, bottom=slat_set, color='blue', hatch='/')
+            p3 = plt.bar(ind, bslat_set, width, bottom=slat_set+fslat_set, color='green')
+            plt.ylabel('% Total I/O Access Latency')
+            plt.title(graph_metrics[0]['device']+'_'+job_name+'_'+'latency')
+            plt.yticks(np.arange(0, max_percent+(max_percent/2), (max_percent/6)))
+            plt.legend((p1, p2, p3), ('Submission (user time)', 'File System', 'Block Layer'), mode="expand", loc=2, ncol=3)
+            fig.savefig(graph_metrics[0]['device']+'_'+job_name+'_'+'latency.png', transparent=False,
+                        dpi=80, bbox_inches="tight")
+            plt.clf()
+            # IOPS graph
+            if num_bars == 2:
+                max_iops = max(graph_metrics[0]['iops'], graph_metrics[1]['iops'])
+                iops_set = np.array((graph_metrics[0]['iops'], graph_metrics[1]['iops']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler']))
+            elif num_bars == 3:
+                max_iops = max(graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops'])
+                iops_set = np.array((graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler']))
+            elif num_bars == 4:
+                max_iops = max(graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops'],
+                               graph_metrics[3]['iops'])
+                iops_set = np.array((graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops'],
+                                     graph_metrics[3]['iops']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler']))
+            elif num_bars == 5:
+                max_iops = max(graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops'],
+                               graph_metrics[3]['iops'], graph_metrics[4]['iops'])
+                iops_set = np.array((graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops'],
+                                     graph_metrics[3]['iops'], graph_metrics[4]['iops']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler'],
+                                 graph_metrics[4]['scheduler']))
+            elif num_bars > 5:
+                max_iops = max(graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops'],
+                               graph_metrics[3]['iops'], graph_metrics[4]['iops'], graph_metrics[5]['iops'])
+                iops_set = np.array((graph_metrics[0]['iops'], graph_metrics[1]['iops'], graph_metrics[2]['iops'],
+                                     graph_metrics[3]['iops'], graph_metrics[4]['iops'], graph_metrics[5]['iops']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler'],
+                                 graph_metrics[4]['scheduler'], graph_metrics[5]['scheduler']))
+
+
+            plt.bar(ind, iops_set, width, color='green')
+            plt.ylabel('Operations')
+            plt.title(graph_metrics[0]['device']+'_'+job_name+'_'+'iops')
+            plt.yticks(np.arange(0, max_iops+(max_iops/2), (max_iops/6)))
+            fig.savefig(graph_metrics[0]['device']+'_'+job_name+'_'+'iops.png', transparent=False,
+                        dpi=80, bbox_inches="tight")
+            plt.clf()
+
+            # Throughput graph
+            if num_bars == 2:
+                max_throughput = max(graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'])
+                throughput_set = np.array((graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler']))
+            elif num_bars == 3:
+                max_throughput = max(graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                     graph_metrics[2]['throughput_MB'])
+                throughput_set = np.array((graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                           graph_metrics[2]['throughput_MB']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler']))
+            elif num_bars == 4:
+                max_throughput = max(graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                     graph_metrics[2]['throughput_MB'], graph_metrics[3]['throughput_MB'])
+                throughput_set = np.array((graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                           graph_metrics[2]['throughput_MB'], graph_metrics[3]['throughput_MB']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler']))
+            elif num_bars == 5:
+                max_throughput = max(graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                     graph_metrics[2]['throughput_MB'], graph_metrics[3]['throughput_MB'],
+                                     graph_metrics[4]['throughput_MB'])
+                throughput_set = np.array((graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                           graph_metrics[2]['throughput_MB'], graph_metrics[3]['throughput_MB'],
+                                           graph_metrics[4]['throughput_MB']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler'],
+                                 graph_metrics[4]['scheduler']))
+            elif num_bars > 5:
+                max_throughput = max(graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                     graph_metrics[2]['throughput_MB'], graph_metrics[3]['throughput_MB'],
+                                     graph_metrics[4]['throughput_MB'], graph_metrics[5]['throughput_MB'])
+                throughput_set = np.array((graph_metrics[0]['throughput_MB'], graph_metrics[1]['throughput_MB'],
+                                           graph_metrics[2]['throughput_MB'], graph_metrics[3]['throughput_MB'],
+                                           graph_metrics[4]['throughput_MB'], graph_metrics[5]['throughput_MB']))
+                plt.xticks(ind, (graph_metrics[0]['scheduler'], graph_metrics[1]['scheduler'],
+                                 graph_metrics[2]['scheduler'], graph_metrics[3]['scheduler'],
+                                 graph_metrics[4]['scheduler'], graph_metrics[5]['scheduler']))
+
+            plt.bar(ind,throughput_set, width, color='red', hatch='/')
+            plt.ylabel('Bandwidth (MB/s)')
+            plt.title(graph_metrics[0]['device']+'_'+job_name+'_'+'throughput')
+            plt.yticks(np.arange(0, max_throughput+(max_throughput/2), (max_throughput/6)))
+            fig.savefig(graph_metrics[0]['device']+'_'+job_name+'_'+'throughput.png', transparent=False,
+                        dpi=80, bbox_inches="tight")
+            plt.clf()
+
 
     @staticmethod
     def print(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
@@ -835,79 +1102,6 @@ class Metrics:
         print_output('    Throughput [1024 B/s]: %.2f (read) %.2f (write) %.2f' %
                      (metrics['throughput'], metrics['throughput-read'], metrics['throughput-write']))
 
-
-class MetricsStore:
-    """A datastore for saving / retrieving metrics."""
-
-    def __init__(self):
-        self._store = dict()
-
-    def __contains__(self, item):
-        return item in self._store
-
-    def __len__(self):
-        return len(self._store)
-
-    def add(self, workload: str, device: str, scheduler: str):
-        """Adds a new key to the datastore.
-
-        :param workload: The workload.
-        :param device: The device.
-        :param scheduler: The scheduler.
-        """
-        key = (workload, device, scheduler)
-        if key not in self._store:
-            self._store[key] = {'workload': workload, 'device': device, 'scheduler': scheduler, 'key': key}
-
-    def get(self, workload: str, device: str, scheduler: str):
-        """Retrieves a single item matching the given key.
-
-        :param workload: The workload.
-        :param device: The device.
-        :param scheduler: The scheduler.
-        :return: The retrieved item.
-        :exception KeyError: Raised if key not found.
-        """
-        key = (workload, device, scheduler)
-        if key not in self._store:
-            raise KeyError("Unable to find key: (%s, %s, %s)" % (workload, device, scheduler))
-
-        return self._store[key]
-
-    def get_all(self, **kwargs):
-        """Retrieves all items with keys matching the given optional kwargs (workload, device, scheduler).
-
-        :param kwargs: The following optional kwargs can be specified for lookups (workload, device, scheduler). Only
-            the specified key parts will be matched on. If none are specified, all items are retrieved.
-        :return: A list of matched items.
-        """
-        workload = None
-        if 'workload' in kwargs:
-            workload = kwargs['workload']
-
-        device = None
-        if 'device' in kwargs:
-            device = kwargs['device']
-
-        scheduler = None
-        if 'scheduler' in kwargs:
-            scheduler = kwargs['scheduler']
-
-        items = []
-
-        for key, value in self._store.items():
-            if workload and key[0] != workload:
-                continue
-
-            if device and key[1] != device:
-                continue
-
-            if scheduler and key[2] != scheduler:
-                continue
-
-            items.append(value)
-
-        return items
 
 # endregion
 
