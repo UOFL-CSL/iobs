@@ -199,6 +199,7 @@ class Mem:
         self.log = False
         self.output_file = None
         self.retry = 1
+        self.should_graph = False
         self.verbose = False
 
         # Global Job Settings
@@ -435,7 +436,8 @@ class Job:
             device_short = Mem.re_device.findall(self.device)[0]
             metrics_store.add(self.workload, device_short, scheduler, metrics)
 
-        Metrics.graph(self.name, metrics_store)
+        if Mem.should_graph:
+            Metrics.graph(self.name, metrics_store)
 
         return True
 
@@ -1551,6 +1553,7 @@ def usage():
     print('<file>            : The configuration file to use.')
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
+    print('-g                : (OPTIONAL) Outputs graphs based on metric information')
     print('-o <output>       : (OPTIONAL) Outputs metric information to a file.')
     print('-r <retry>        : (OPTIONAL) Used to retry a job more than once if failure occurs. Defaults to 1.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
@@ -1575,6 +1578,8 @@ def parse_args(argv: list) -> bool:
                 return False
             elif opt == '-l':
                 Mem.log = True
+            elif opt == '-g':
+                Mem.should_graph = True
             elif opt == '-o':
                 Mem.output_file = arg
             elif opt == '-r':
