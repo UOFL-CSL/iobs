@@ -213,7 +213,7 @@ class Mem:
 
         # Formatters
         self.format_blktrace = 'blktrace -d %s -o %s -w %s'  # device, file prefix, runtime
-        self.format_blkparse = 'blkparse -i %s.blktrace.* -d %s.blkparse.bin'  # file prefix, file prefix
+        self.format_blkparse = 'blkparse -i %s -d %s.blkparse.bin'  # file prefix, file prefix
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
 
         # Regex
