@@ -213,7 +213,7 @@ class Mem:
 
         # Formatters
         self.format_blktrace = 'blktrace -d %s -o %s -w %s'  # device, file prefix, runtime
-        self.format_blkparse = 'blkparse -i %s -d %s.blkparse.bin'  # file prefix, file prefix
+        self.format_blkparse = "blkparse -i %s -d %s.blkparse.bin -f ''"  # file prefix, file prefix
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
 
         # Regex
@@ -540,6 +540,9 @@ class Job:
                 blktrace_out, _ = out['blktrace']
                 workload_out, _ = out[self.workload]
 
+                log('Workload Output')
+                log(workload_out)
+
                 if blktrace_out is None or workload_out is None:
                     log('Error running workload %s' % self.workload)
                     time.sleep(5)
@@ -555,10 +558,16 @@ class Job:
 
             blkparse_out, _ = run_command(blkparse)
 
+            log('BLKPARSE Output')
+            log(blkparse_out)
+
             # Run btt
             btt = Mem.format_btt % device_short
 
             btt_out, _ = run_command(btt)
+
+            log('BTT Output')
+            log(btt_out.split("# Total System")[0])
 
             # Cleanup intermediate files
             if Mem.cleanup:
