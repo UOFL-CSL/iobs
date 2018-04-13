@@ -215,6 +215,7 @@ class Mem:
         self.format_blktrace = 'blktrace -d %s -o %s -w %s'  # device, file prefix, runtime
         self.format_blkparse = "blkparse -i %s -d %s.blkparse.bin -f ''"  # file prefix, file prefix
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
+        self.format_blkrawverify = 'blkrawverify %s' # file prefix
 
         # Regex
         self.re_blkparse_throughput_read = re.compile(r'Throughput \(R/W\): (\d+)[a-zA-Z]+/s')
@@ -560,6 +561,14 @@ class Job:
 
             log('BLKPARSE Output')
             log(blkparse_out)
+
+            # Run blkrawverify
+            blkrawverify = Mem.format_blkrawverify % device_short
+
+            blkrawverify_out, _ = run_command(blkrawverify)
+
+            log('BLKRAWYVERIFY Output')
+            log(blkrawverify_out)
 
             # Run btt
             btt = Mem.format_btt % device_short
