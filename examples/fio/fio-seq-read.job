@@ -2,7 +2,7 @@
 
 [global]
 name=fio-seq-reads
-filename=fio-seq-reads
+filename=/dev/sda
 rw=read
 bs=1024K
 direct=1

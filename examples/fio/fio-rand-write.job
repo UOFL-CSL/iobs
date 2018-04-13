@@ -2,7 +2,7 @@
 
 [global]
 name=fio-rand-writes
-filename=fio-rand-writes
+filename=/dev/sda
 rw=randwrite
 bs=1024K
 direct=1

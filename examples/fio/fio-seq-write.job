@@ -2,7 +2,7 @@
 
 [global]
 name=fio-seq-writes
-filename=fio-seq-writes
+filename=/dev/sda
 rw=write
 bs=1024K
 direct=1

@@ -2,7 +2,7 @@
 
 [global]
 name=fio-rand-reads
-filename=fio-rand-reads
+filename=/dev/sda
 rw=randread
 bs=1024K
 direct=1
