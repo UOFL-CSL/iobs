@@ -530,7 +530,7 @@ class Job:
 
                 adj_command = adjusted_workload(self.command, self.workload)
 
-                out = run_parallel_commands([('blktrace', 0, blktrace), (self.workload, self.delay, adj_command)])
+                out = run_parallel_commands([('blktrace', self.delay, blktrace), (self.workload, 0, adj_command)])
 
                 # Error running commands
                 if out is None:
@@ -559,8 +559,9 @@ class Job:
 
             blkparse_out, _ = run_command(blkparse)
 
-            log('BLKPARSE Output')
-            log(blkparse_out)
+            # Way too much cowbell (-f '' doesn't seem to trim output)
+            #log('BLKPARSE Output')
+            #log(blkparse_out)
 
             # Run blkrawverify
             blkrawverify = Mem.format_blkrawverify % device_short
