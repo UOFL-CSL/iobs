@@ -43,6 +43,16 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 
+# region termination
+def sig_handler(signal, frame):
+    if Mem.current_processes:
+        kill_processes(Mem.current_processes)
+        Mem.current_processes.clear()
+
+    sys.exit(0)
+# endregion
+
+
 # region utils
 def adjusted_workload(command: str, workload: str):
     """Adjusts a command by adding extra flags, etc.
@@ -228,6 +238,9 @@ class Mem:
         self.valid_global_settings = {'command', 'delay', 'device', 'schedulers', 'repetition', 'runtime', 'workload'}
         self.valid_job_settings = {'command', 'delay', 'device', 'schedulers', 'repetition', 'runtime', 'workload'}
         self.valid_workloads = {'fio'}
+
+        # Other
+        self.current_processes = set() # Keep track of current processes for killing purposes
 
     @property
     def command(self) -> str:
@@ -1379,9 +1392,13 @@ def run_command(command: str, inp: str='') -> (str, int):
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                              preexec_fn=os.setsid)
 
+        Mem.current_processes.add((command, p))
+
         out, err = p.communicate(inp)
 
         rc = p.returncode
+
+        Mem.current_processes.clear()
 
         if err:
             print_detailed(err.decode('utf-8'))
@@ -1390,6 +1407,8 @@ def run_command(command: str, inp: str='') -> (str, int):
     except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
         print_detailed(err)
         return None, None
+    finally:
+        Mem.current_processes.clear()
 
 
 def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing.cpu_count(),
@@ -1411,7 +1430,8 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
         print_detailed('Maximum concurrent processes must be > 0')
         return None
 
-    processes = set()
+    Mem.current_processes.clear()
+
     completed_processes = set()
 
     last_delay = 0
@@ -1431,19 +1451,19 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
             p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                                  preexec_fn=os.setsid)
 
-            processes.add((command_name, p))
+            Mem.current_processes.add((command_name, p))
         except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
             print_detailed(err)
             if abort_on_failure:
                 break
 
         # Limit the number of threads
-        while len(processes) >= max_concurrent:
+        while len(Mem.current_processes) >= max_concurrent:
             time.sleep(0.5)
 
-            finished_processes = get_finished_processes(processes)
+            finished_processes = get_finished_processes(Mem.current_processes)
 
-            processes.difference_update(finished_processes)
+            Mem.current_processes.difference_update(finished_processes)
             completed_processes.update(finished_processes)
 
             if abort_on_failure:
@@ -1451,16 +1471,16 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
 
                 if failed_processes:  # Something failed, abort!
                     print_processes(failed_processes)
-                    kill_processes(processes)
+                    kill_processes(Mem.current_processes)
                     break
     else:
         # Wait for processes to finish
-        while len(processes) > 0:
+        while len(Mem.current_processes) > 0:
             time.sleep(0.5)
 
-            finished_processes = get_finished_processes(processes)
+            finished_processes = get_finished_processes(Mem.current_processes)
 
-            processes.difference_update(finished_processes)
+            Mem.current_processes.difference_update(finished_processes)
             completed_processes.update(finished_processes)
 
             if abort_on_failure:
@@ -1468,7 +1488,7 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
 
                 if failed_processes:  # Something failed, abort!
                     print_processes(failed_processes)
-                    kill_processes(processes)
+                    kill_processes(Mem.current_processes)
                     return None
 
         ret = dict()
@@ -1487,10 +1507,10 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
         return ret
 
     # We got here because we aborted, continue the abortion...
-    failed_processes = get_failed_processes(processes)
+    failed_processes = get_failed_processes(Mem.current_processes)
     print_processes(failed_processes)
 
-    kill_processes(processes)
+    kill_processes(Mem.current_processes)
 
     return None
 
@@ -1715,8 +1735,11 @@ def kill_processes(processes: set):
     :param processes: A set of tuples of command names and processes.
     """
     for command_name, process in processes:
-        log('Killing process %s' % process)
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        try:
+            log('Killing process %s' % process)
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        except:
+            pass
 
 
 def print_processes(processes: set):
@@ -1789,4 +1812,8 @@ def main(argv: list):
 
 
 if __name__ == '__main__':
+    # Add signal handlers for graceful termination
+    signal.signal(signal.SIGTERM, sig_handler)
+    signal.signal(signal.SIGINT, sig_handler)
+
     main(sys.argv[1:])
