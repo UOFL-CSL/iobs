@@ -546,7 +546,7 @@ class Job:
                 out = run_parallel_commands([('blktrace', self.delay, blktrace), (self.workload, 0, adj_command)])
 
                 # Error running commands
-                if out is None:
+                if out is None or 'blktrace' in out and out['blktrace'] is None:
                     log('Error running workload %s' % self.workload)
                     time.sleep(5)
                     continue
@@ -563,42 +563,51 @@ class Job:
                     continue
 
                 break
+
+                # Run blkparse
+                blkparse = Mem.format_blkparse % (device_short, device_short)
+
+                blkparse_out, _ = run_command(blkparse)
+
+                # Way too much cowbell (-f '' doesn't seem to trim output)
+                #log('BLKPARSE Output')
+                #log(blkparse_out)
+
+                # Run blkrawverify
+                blkrawverify = Mem.format_blkrawverify % device_short
+
+                blkrawverify_out, _ = run_command(blkrawverify)
+
+                log('BLKRAWYVERIFY Output')
+                log(blkrawverify_out)
+
+                # Run btt
+                btt = Mem.format_btt % device_short
+
+                btt_out, _ = run_command(btt)
+
+                if btt_out is None:
+                    log('Error running workload %s' % self.workload)
+                    time.sleep(5)
+                    continue
+
+                log('BTT Output')
+                btt_split = btt_out.split("# Total System")[0]
+                btt_split2 = btt_split.split("==================== All Devices ====================")[-1]
+                log("==================== All Devices ====================")
+                log(btt_split2)
             else:
                 print_detailed('Unable to run workload %s' % self.workload)
                 return None
 
-            # Run blkparse
-            blkparse = Mem.format_blkparse % (device_short, device_short)
-
-            blkparse_out, _ = run_command(blkparse)
-
-            # Way too much cowbell (-f '' doesn't seem to trim output)
-            #log('BLKPARSE Output')
-            #log(blkparse_out)
-
-            # Run blkrawverify
-            blkrawverify = Mem.format_blkrawverify % device_short
-
-            blkrawverify_out, _ = run_command(blkrawverify)
-
-            log('BLKRAWYVERIFY Output')
-            log(blkrawverify_out)
-
-            # Run btt
-            btt = Mem.format_btt % device_short
-
-            btt_out, _ = run_command(btt)
-
-            log('BTT Output')
-            log(btt_out.split("# Total System")[0])
-
             # Cleanup intermediate files
             if Mem.cleanup:
                 log('Cleaning up files')
-            cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
+                cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
 
-            dmm = get_device_major_minor(self.device)
-            cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
+                dmm = get_device_major_minor(self.device)
+                cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
+                cleanup_files('%s.verify.out') % device_short
 
             m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
             metrics.add_metrics(m)
