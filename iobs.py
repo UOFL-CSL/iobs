@@ -133,7 +133,7 @@ def log(*args, **kwargs):
             args_rem = [a.strip() if isinstance(a, str) else a for a in args][1:]
             message = args[0]
 
-            for line in message.split('\n'):
+            for line in str(message).split('\n'):
                 logging.debug(line, *args_rem, **kwargs)
         else:
             logging.debug(*args, **kwargs)
