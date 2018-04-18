@@ -1596,7 +1596,7 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s <file> [-c] [-l] [-o <output>] [-r <retry>] [-v] [-x]' % name)
+    print('Usage: %s <file> [-c] [-l] [-g] [-o <output>] [-r <retry>] [-v] [-x]' % name)
     print('Command Line Arguments:')
     print('<file>            : The configuration file to use.')
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
@@ -1617,7 +1617,7 @@ def parse_args(argv: list) -> bool:
     :return: Returns a boolean as True if parsed correctly, otherwise False.
     """
     try:
-        opts, args = getopt(argv, 'hlo:r:vx')
+        opts, args = getopt(argv, 'ghlo:r:vx')
 
         for opt, arg in opts:
             if opt == '-c':
