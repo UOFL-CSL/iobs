@@ -622,6 +622,7 @@ class Job:
                 m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
                 metrics.add_metrics(m)
 
+                break  # Break in this case because we ran it successfully
             else:
                 print_detailed('Unable to run workload %s' % self.workload)
                 return None
