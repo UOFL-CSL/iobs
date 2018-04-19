@@ -596,21 +596,22 @@ class Job:
                 btt_split2 = btt_split.split("==================== All Devices ====================")[-1]
                 log("==================== All Devices ====================")
                 log(btt_split2)
+
+                # Cleanup intermediate files
+                if Mem.cleanup:
+                    log('Cleaning up files')
+                    cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
+
+                    dmm = get_device_major_minor(self.device)
+                    cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
+                    cleanup_files('%s.verify.out' % device_short)
+
+                m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
+                metrics.add_metrics(m)
+
             else:
                 print_detailed('Unable to run workload %s' % self.workload)
                 return None
-
-            # Cleanup intermediate files
-            if Mem.cleanup:
-                log('Cleaning up files')
-                cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
-
-                dmm = get_device_major_minor(self.device)
-                cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
-                cleanup_files('%s.verify.out' % device_short)
-
-            m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
-            metrics.add_metrics(m)
 
         return metrics.average_metrics()
 
