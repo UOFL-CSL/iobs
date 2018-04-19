@@ -1413,7 +1413,7 @@ def run_command(command: str, inp: str='') -> (str, int):
             print_detailed(err.decode('utf-8'))
 
         return out.decode('utf-8'), rc
-    except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
+    except (ValueError, subprocess.CalledProcessError, FileNotFoundError, KeyboardInterrupt) as err:
         print_detailed(err)
         return None, None
     finally:
@@ -1441,87 +1441,94 @@ def run_parallel_commands(command_map: list, max_concurrent: int=multiprocessing
 
     Mem.current_processes.clear()
 
-    completed_processes = set()
+    try:
+        completed_processes = set()
 
-    last_delay = 0
+        last_delay = 0
 
-    for command_name, delay, command in sorted(command_map, key=lambda x: x[1]):
-        try:
-            # Delay command execution based on specified delay
-            # Note: This isn't quite exact, due to timing issues and the concurrency limit
-            if delay > last_delay:
-                time.sleep(delay - last_delay)
-                last_delay = delay
+        for command_name, delay, command in sorted(command_map, key=lambda x: x[1]):
+            try:
+                # Delay command execution based on specified delay
+                # Note: This isn't quite exact, due to timing issues and the concurrency limit
+                if delay > last_delay:
+                    time.sleep(delay - last_delay)
+                    last_delay = delay
 
-            log('Running command %s' % command)
+                log('Running command %s' % command)
 
-            args = shlex.split(command)
+                args = shlex.split(command)
 
-            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
-                                 preexec_fn=os.setsid)
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                                     preexec_fn=os.setsid)
 
-            Mem.current_processes.add((command_name, p))
-        except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
-            print_detailed(err)
-            if abort_on_failure:
-                break
-
-        # Limit the number of threads
-        while len(Mem.current_processes) >= max_concurrent:
-            time.sleep(0.5)
-
-            finished_processes = get_finished_processes(Mem.current_processes)
-
-            Mem.current_processes.difference_update(finished_processes)
-            completed_processes.update(finished_processes)
-
-            if abort_on_failure:
-                failed_processes = get_failed_processes(finished_processes)
-
-                if failed_processes:  # Something failed, abort!
-                    print_processes(failed_processes)
-                    kill_processes(Mem.current_processes)
+                Mem.current_processes.add((command_name, p))
+            except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
+                print_detailed(err)
+                if abort_on_failure:
                     break
-    else:
-        # Wait for processes to finish
-        while len(Mem.current_processes) > 0:
-            time.sleep(0.5)
 
-            finished_processes = get_finished_processes(Mem.current_processes)
+            # Limit the number of threads
+            while len(Mem.current_processes) >= max_concurrent:
+                time.sleep(0.5)
 
-            Mem.current_processes.difference_update(finished_processes)
-            completed_processes.update(finished_processes)
+                finished_processes = get_finished_processes(Mem.current_processes)
 
-            if abort_on_failure:
-                failed_processes = get_failed_processes(finished_processes)
+                Mem.current_processes.difference_update(finished_processes)
+                completed_processes.update(finished_processes)
 
-                if failed_processes:  # Something failed, abort!
-                    print_processes(failed_processes)
-                    kill_processes(Mem.current_processes)
-                    return None
+                if abort_on_failure:
+                    failed_processes = get_failed_processes(finished_processes)
 
-        ret = dict()
+                    if failed_processes:  # Something failed, abort!
+                        print_processes(failed_processes)
+                        kill_processes(Mem.current_processes)
+                        break
+        else:
+            # Wait for processes to finish
+            while len(Mem.current_processes) > 0:
+                time.sleep(0.5)
 
-        # Grab outputs from completed processes
-        for command_name, process in completed_processes:
-            out, err = process.communicate()
+                finished_processes = get_finished_processes(Mem.current_processes)
 
-            rc = process.returncode
+                Mem.current_processes.difference_update(finished_processes)
+                completed_processes.update(finished_processes)
 
-            if err:
-                print_detailed(err.decode('utf-8'))
+                if abort_on_failure:
+                    failed_processes = get_failed_processes(finished_processes)
 
-            ret[command_name] = (out.decode('utf-8'), rc)
+                    if failed_processes:  # Something failed, abort!
+                        print_processes(failed_processes)
+                        kill_processes(Mem.current_processes)
+                        Mem.current_processes.clear()
+                        return None
 
-        return ret
+            ret = dict()
 
-    # We got here because we aborted, continue the abortion...
-    failed_processes = get_failed_processes(Mem.current_processes)
-    print_processes(failed_processes)
+            # Grab outputs from completed processes
+            for command_name, process in completed_processes:
+                out, err = process.communicate()
 
-    kill_processes(Mem.current_processes)
+                rc = process.returncode
 
-    return None
+                if err:
+                    print_detailed(err.decode('utf-8'))
+
+                ret[command_name] = (out.decode('utf-8'), rc)
+
+            return ret
+
+        # We got here because we aborted, continue the abortion...
+        failed_processes = get_failed_processes(Mem.current_processes)
+        print_processes(failed_processes)
+
+        kill_processes(Mem.current_processes)
+        Mem.current_processes.clear()
+
+        return None
+    except KeyboardInterrupt as e:
+        print_detailed(e)
+        kill_processes(Mem.current_processes)
+        return None
 
 
 @log_around(exception_message='Error occurred running command')
