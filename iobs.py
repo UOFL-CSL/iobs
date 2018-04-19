@@ -437,6 +437,15 @@ class Job:
 
             metrics = self._execute_workload()
 
+            if metrics is None:
+                print_detailed('Unable to run workload %s for scheduler %s and device %s' % (scheduler, self.device))
+                if Mem.continue_on_failure:
+                    print_detailed('Continuing to next workload')
+                    continue
+                else:
+                    print_detailed('Aborting mission!')
+                    raise Exception('Failed to run workload! All hope is lost!')
+
             metrics = defaultdict(int, metrics)
             metrics['slat'] = Metrics.average_metric(metrics, ('slat-read', 'slat-write'))
             metrics['clat'] = Metrics.average_metric(metrics, ('clat-read', 'clat-write'))
