@@ -451,7 +451,10 @@ class Job:
             metrics_store.add(self.workload, device_short, scheduler, metrics)
 
         if Mem.should_graph:
-            Metrics.graph(self.name, metrics_store)
+            try:
+                Metrics.graph(self.name, metrics_store)
+            except:
+                print('Unable to create graphs')
 
         return True
 
