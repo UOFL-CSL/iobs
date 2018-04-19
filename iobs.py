@@ -603,7 +603,7 @@ class Job:
                 # Cleanup intermediate files
                 if Mem.cleanup:
                     log('Cleaning up files')
-                    cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
+                    cleanup_files('%s.blktrace.*' % device_short, '%s.blkparse.*' % device_short, 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
 
                     dmm = get_device_major_minor(self.device)
                     cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
