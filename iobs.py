@@ -438,7 +438,7 @@ class Job:
             metrics = self._execute_workload()
 
             if metrics is None:
-                print_detailed('Unable to run workload %s for scheduler %s and device %s' % (scheduler, self.device))
+                print_detailed('Unable to run workload %s for scheduler %s and device %s' % (self.name, scheduler, self.device))
                 if Mem.continue_on_failure:
                     print_detailed('Continuing to next workload')
                     continue
