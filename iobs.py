@@ -133,7 +133,7 @@ def log(*args, **kwargs):
             args_rem = [a.strip() if isinstance(a, str) else a for a in args][1:]
             message = args[0]
 
-            for line in message.split('\n'):
+            for line in str(message).split('\n'):
                 logging.debug(line, *args_rem, **kwargs)
         else:
             logging.debug(*args, **kwargs)
@@ -596,21 +596,22 @@ class Job:
                 btt_split2 = btt_split.split("==================== All Devices ====================")[-1]
                 log("==================== All Devices ====================")
                 log(btt_split2)
+
+                # Cleanup intermediate files
+                if Mem.cleanup:
+                    log('Cleaning up files')
+                    cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
+
+                    dmm = get_device_major_minor(self.device)
+                    cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
+                    cleanup_files('%s.verify.out' % device_short)
+
+                m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
+                metrics.add_metrics(m)
+
             else:
                 print_detailed('Unable to run workload %s' % self.workload)
                 return None
-
-            # Cleanup intermediate files
-            if Mem.cleanup:
-                log('Cleaning up files')
-                cleanup_files('sda.blktrace.*', 'sda.blkparse.*', 'sys_iops_fp.dat', 'sys_mbps_fp.dat')
-
-                dmm = get_device_major_minor(self.device)
-                cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
-                cleanup_files('%s.verify.out') % device_short
-
-            m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
-            metrics.add_metrics(m)
 
         return metrics.average_metrics()
 
@@ -1603,7 +1604,7 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s <file> [-c] [-l] [-o <output>] [-r <retry>] [-v] [-x]' % name)
+    print('Usage: %s <file> [-c] [-l] [-g] [-o <output>] [-r <retry>] [-v] [-x]' % name)
     print('Command Line Arguments:')
     print('<file>            : The configuration file to use.')
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
@@ -1624,7 +1625,7 @@ def parse_args(argv: list) -> bool:
     :return: Returns a boolean as True if parsed correctly, otherwise False.
     """
     try:
-        opts, args = getopt(argv, 'hlo:r:vx')
+        opts, args = getopt(argv, 'ghlo:r:vx')
 
         for opt, arg in opts:
             if opt == '-c':
