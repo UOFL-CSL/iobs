@@ -463,7 +463,7 @@ class Job:
             try:
                 Metrics.graph(self.name, metrics_store)
             except:
-                print('Unable to create graphs')
+                print_detailed('Unable to create graphs')
 
         return True
 
