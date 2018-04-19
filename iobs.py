@@ -536,6 +536,9 @@ class Job:
             # Repeat workload if failure
             retry = 0
             while retry < Mem.retry:
+                if retry > 0:
+                    print_detailed('Error running workload (%s time)! Repeating the workload!' % (retry + 1))
+
                 retry += 1
 
                 # Clear all the things
@@ -549,7 +552,7 @@ class Job:
                 out = run_parallel_commands([('blktrace', self.delay, blktrace), (self.workload, 0, adj_command)])
 
                 # Error running commands
-                if out is None or 'blktrace' in out and out['blktrace'] is None:
+                if out is None or ('blktrace' in out and out['blktrace'] is None):
                     log('Error running workload %s' % self.workload)
                     time.sleep(5)
                     continue
@@ -560,12 +563,10 @@ class Job:
                 log('Workload Output')
                 log(workload_out)
 
-                if blktrace_out is None or workload_out is None:
+                if blktrace_out is None or blktrace_out == '' or workload_out is None or workload_out == '':
                     log('Error running workload %s' % self.workload)
                     time.sleep(5)
                     continue
-
-                break
 
                 # Run blkparse
                 blkparse = Mem.format_blkparse % (device_short, device_short)
@@ -589,7 +590,7 @@ class Job:
 
                 btt_out, _ = run_command(btt)
 
-                if btt_out is None:
+                if btt_out is None or btt_out == '':
                     log('Error running workload %s' % self.workload)
                     time.sleep(5)
                     continue
