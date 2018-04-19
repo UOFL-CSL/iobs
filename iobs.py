@@ -607,7 +607,7 @@ class Job:
 
                 dmm = get_device_major_minor(self.device)
                 cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
-                cleanup_files('%s.verify.out') % device_short
+                cleanup_files('%s.verify.out' % device_short)
 
             m = Metrics.gather_metrics(blktrace_out, blkparse_out, btt_out, workload_out, self.workload)
             metrics.add_metrics(m)
