@@ -967,11 +967,11 @@ class Metrics:
         ax = fig.add_subplot(1, 1, 1)
         ax.yaxis.set_major_formatter(ticker.PercentFormatter())
 
-        max_percent = max(graph_metrics[i][key_lookup['percent']] for i in range(num_bars))
-        slat_set = np.array((graph_metrics[i][key_lookup['slat_percent']] for i in range(num_bars)))
-        fslat_set = np.array((graph_metrics[i][key_lookup['fslat_percent']] for i in range(num_bars)))
-        bslat_set = np.array((graph_metrics[i][key_lookup['bslat_percent']] for i in range(num_bars)))
-        plt.xticks(ind, (graph_metrics[i]['scheduler'] for i in range(num_bars)))
+        max_percent = max(list(graph_metrics[i][key_lookup['percent']] for i in range(num_bars)))
+        slat_set = np.array((list(graph_metrics[i][key_lookup['slat_percent']] for i in range(num_bars))))
+        fslat_set = np.array((list(graph_metrics[i][key_lookup['fslat_percent']] for i in range(num_bars))))
+        bslat_set = np.array((list(graph_metrics[i][key_lookup['bslat_percent']] for i in range(num_bars))))
+        plt.xticks(ind, (list(graph_metrics[i]['scheduler'] for i in range(num_bars))))
 
         p1 = plt.bar(ind, slat_set, width, color='orange')
         p2 = plt.bar(ind, fslat_set, width, bottom=slat_set, color='blue', hatch='/')
@@ -1005,9 +1005,9 @@ class Metrics:
         ax = fig.add_subplot(1, 1, 1)
         ax.yaxis.set_major_formatter(ticker.PercentFormatter())
 
-        max_iops = max(graph_metrics[i][key_lookup['iops']] for i in range(num_bars))
-        iops_set = np.array((graph_metrics[i][key_lookup['iops']] for i in range(num_bars)))
-        plt.xticks(ind, (graph_metrics[i]['scheduler'] for i in range(num_bars)))
+        max_iops = max(list(graph_metrics[i][key_lookup['iops']] for i in range(num_bars)))
+        iops_set = np.array((list(graph_metrics[i][key_lookup['iops']] for i in range(num_bars))))
+        plt.xticks(ind, (list(graph_metrics[i]['scheduler'] for i in range(num_bars))))
 
         plt.bar(ind, iops_set, width, color='green')
         plt.ylabel('Operations')
@@ -1037,9 +1037,9 @@ class Metrics:
         ax = fig.add_subplot(1, 1, 1)
         ax.yaxis.set_major_formatter(ticker.PercentFormatter())
 
-        max_throughput = max(graph_metrics[i][key_lookup['throughput']] for i in range(num_bars))
-        throughput_set = np.array((graph_metrics[i][key_lookup['throughput']] for i in range(num_bars)))
-        plt.xticks(ind, (graph_metrics[i]['scheduler'] for i in range(num_bars)))
+        max_throughput = max(list(graph_metrics[i][key_lookup['throughput']] for i in range(num_bars)))
+        throughput_set = np.array((list(graph_metrics[i][key_lookup['throughput']] for i in range(num_bars))))
+        plt.xticks(ind, (list(graph_metrics[i]['scheduler'] for i in range(num_bars))))
 
         plt.bar(ind, throughput_set, width, color='red', hatch='/')
         plt.ylabel('Bandwidth (MB/s)')
