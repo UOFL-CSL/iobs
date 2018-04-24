@@ -923,6 +923,8 @@ class Metrics:
         Metrics.__graph_throughput(job_name, graph_metrics, fig, klr)
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to build graph key lookup!')
     def __graph_key_lookup(key_type: str) -> dict:
         """Key lookup for graph metrics. Attempts to reduce code smell.
 
@@ -948,6 +950,8 @@ class Metrics:
         return lookup
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to graph latency!')
     def __graph_latency(job_name: str, graph_metrics: list, fig, key_lookup: dict):
         """Graphs latency.
 
@@ -986,6 +990,8 @@ class Metrics:
         plt.clf()
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to graph iops!')
     def __graph_iops(job_name: str, graph_metrics: list, fig, key_lookup: dict):
         """Graphs iops.
 
@@ -1018,6 +1024,8 @@ class Metrics:
         plt.clf()
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to graph throughput!')
     def __graph_throughput(job_name: str, graph_metrics: list, fig, key_lookup: dict):
         """Graphs throughput.
 
@@ -1050,6 +1058,7 @@ class Metrics:
         plt.clf()
 
     @staticmethod
+    @ignore_exception()
     def print(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
         """Prints metric information to STDOUT.
 
