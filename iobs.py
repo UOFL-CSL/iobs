@@ -559,8 +559,6 @@ class Job:
                     time.sleep(5)
                     continue
 
-                break
-
                 # Run blkparse
                 blkparse = Mem.format_blkparse % (device_short, device_short)
 
@@ -606,6 +604,7 @@ class Job:
                 m = Metrics.gather_metrics(blkparse_out, btt_out, workload_out, self.workload)
                 metrics.add_metrics(m)
 
+                break
             else:
                 print_detailed('Unable to run workload %s' % self.workload)
                 return None
