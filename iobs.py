@@ -772,25 +772,25 @@ class Metrics:
                     bwwc += 1
                     log('Grabbing metric %s: %s' % ('bandwidth-write', job['write']['bw']))
 
-                ret['clat-read'] += float(job['read']['clat']['mean'])
-                if job['read']['clat']['mean'] > 0:
+                ret['clat-read'] += float(job['read']['clat_ns']['mean'])
+                if job['read']['clat_ns']['mean'] > 0:
                     crc += 1
-                    log('Grabbing metric %s: %s' % ('clat-read', job['read']['clat']['mean']))
+                    log('Grabbing metric %s: %s' % ('clat-read', job['read']['clat_ns']['mean']))
 
-                ret['clat-write'] += float(job['write']['clat']['mean'])
-                if job['write']['clat']['mean'] > 0:
+                ret['clat-write'] += float(job['write']['clat_ns']['mean'])
+                if job['write']['clat_ns']['mean'] > 0:
                     cwc += 1
-                    log('Grabbing metric %s: %s' % ('clat-write', job['write']['clat']['mean']))
+                    log('Grabbing metric %s: %s' % ('clat-write', job['write']['clat_ns']['mean']))
 
-                ret['slat-read'] += float(job['read']['slat']['mean'])
-                if job['read']['slat']['mean'] > 0:
+                ret['slat-read'] += float(job['read']['slat_ns']['mean'])
+                if job['read']['slat_ns']['mean'] > 0:
                     src += 1
-                    log('Grabbing metric %s: %s' % ('slat-read', job['read']['slat']['mean']))
+                    log('Grabbing metric %s: %s' % ('slat-read', job['read']['slat_ns']['mean']))
 
-                ret['slat-write'] += float(job['write']['slat']['mean'])
-                if job['write']['slat']['mean'] > 0:
+                ret['slat-write'] += float(job['write']['slat_ns']['mean'])
+                if job['write']['slat_ns']['mean'] > 0:
                     swc += 1
-                    log('Grabbing metric %s: %s' % ('slat-write', job['write']['slat']['mean']))
+                    log('Grabbing metric %s: %s' % ('slat-write', job['write']['slat_ns']['mean']))
 
                 ret['iops-read'] += float(job['read']['iops'])
                 if job['read']['iops'] > 0:
