@@ -7,13 +7,13 @@ delay=1
 workload=fio
 
 [fio-sequential-read]
-command=fio examples/fio/fio-seq-read.job
+command=fio --name=fio-seq-read --rw=read --bs=1024K --direct=1 --numjobs=1 --time_based=1 --runtime=30 --filename=fiofile --size=10G --ioengine=libaio --iodepth=1
 
 [fio-sequential-write]
-command=fio examples/fio/fio-seq-write.job
+command=fio --name=fio-seq-write --rw=write --bs=1024K --direct=1 --numjobs=1 --time_based=1 --runtime=30 --filename=fiofile --size=10G --ioengine=libaio --iodepth=1
 
 [fio-random-read]
-command=fio examples/fio/fio-rand-read.job
+command=fio --name=fio-rand-read --rw=randread --bs=1024K --direct=1 --numjobs=1 --time_based=1 --runtime=30 --filename=fiofile --size=10G --ioengine=libaio --iodepth=1
 
 [fio-random-write]
-command=fio examples/fio/fio-rand-write.job
+command=fio --name=fio-rand-write --rw=randwrite --bs=1024K --direct=1 --numjobs=1 --time_based=1 --runtime=30 --filename=fiofile --size=10G --ioengine=libaio --iodepth=1
