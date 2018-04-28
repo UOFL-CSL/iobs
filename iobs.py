@@ -811,6 +811,12 @@ class Metrics:
             if swc > 0: ret['slat-write'] /= swc
             if iopsr > 0: ret['iops-read'] /= iopsr
             if iopsw > 0: ret['iops-write'] /= iopsw
+
+            # Adjust values to be in µs 
+            ret['clat-read'] /= 10**3
+            ret['clat-write'] /= 10**3
+            ret['slat-read'] /= 10**3
+            ret['slat-write'] /= 10**3
         else:
             print_detailed('Unable to interpret workload %s' % workload)
 
