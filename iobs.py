@@ -1043,9 +1043,9 @@ class Metrics:
 
         plt.bar(ind, throughput_set, width, color='red', hatch='/')
         plt.ylabel('Bandwidth (MB/s)')
-        plt.title(graph_metrics[0]['device'] + '_' + job_name + '_iops_' + key_lookup['type'])
+        plt.title(graph_metrics[0]['device'] + '_' + job_name + '_throughput_' + key_lookup['type'])
         plt.yticks(np.arange(0, max_throughput + (max_throughput / 2), (max_throughput / 6)))
-        fig.savefig(graph_metrics[0]['device'] + '_' + job_name + '_iops_' + key_lookup['type'] + '.png', transparent=False,
+        fig.savefig(graph_metrics[0]['device'] + '_' + job_name + '_throughput_' + key_lookup['type'] + '.png', transparent=False,
                     dpi=80, bbox_inches="tight")
         plt.clf()
 
