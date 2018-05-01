@@ -559,8 +559,6 @@ class Job:
                     time.sleep(5)
                     continue
 
-                break
-
                 # Run blkparse
                 blkparse = Mem.format_blkparse % (device_short, device_short)
 
@@ -606,6 +604,7 @@ class Job:
                 m = Metrics.gather_metrics(blkparse_out, btt_out, workload_out, self.workload)
                 metrics.add_metrics(m)
 
+                break
             else:
                 print_detailed('Unable to run workload %s' % self.workload)
                 return None
@@ -773,25 +772,25 @@ class Metrics:
                     bwwc += 1
                     log('Grabbing metric %s: %s' % ('bandwidth-write', job['write']['bw']))
 
-                ret['clat-read'] += float(job['read']['clat']['mean'])
-                if job['read']['clat']['mean'] > 0:
+                ret['clat-read'] += float(job['read']['clat_ns']['mean'])
+                if job['read']['clat_ns']['mean'] > 0:
                     crc += 1
-                    log('Grabbing metric %s: %s' % ('clat-read', job['read']['clat']['mean']))
+                    log('Grabbing metric %s: %s' % ('clat-read', job['read']['clat_ns']['mean']))
 
-                ret['clat-write'] += float(job['write']['clat']['mean'])
-                if job['write']['clat']['mean'] > 0:
+                ret['clat-write'] += float(job['write']['clat_ns']['mean'])
+                if job['write']['clat_ns']['mean'] > 0:
                     cwc += 1
-                    log('Grabbing metric %s: %s' % ('clat-write', job['write']['clat']['mean']))
+                    log('Grabbing metric %s: %s' % ('clat-write', job['write']['clat_ns']['mean']))
 
-                ret['slat-read'] += float(job['read']['slat']['mean'])
-                if job['read']['slat']['mean'] > 0:
+                ret['slat-read'] += float(job['read']['slat_ns']['mean'])
+                if job['read']['slat_ns']['mean'] > 0:
                     src += 1
-                    log('Grabbing metric %s: %s' % ('slat-read', job['read']['slat']['mean']))
+                    log('Grabbing metric %s: %s' % ('slat-read', job['read']['slat_ns']['mean']))
 
-                ret['slat-write'] += float(job['write']['slat']['mean'])
-                if job['write']['slat']['mean'] > 0:
+                ret['slat-write'] += float(job['write']['slat_ns']['mean'])
+                if job['write']['slat_ns']['mean'] > 0:
                     swc += 1
-                    log('Grabbing metric %s: %s' % ('slat-write', job['write']['slat']['mean']))
+                    log('Grabbing metric %s: %s' % ('slat-write', job['write']['slat_ns']['mean']))
 
                 ret['iops-read'] += float(job['read']['iops'])
                 if job['read']['iops'] > 0:
@@ -812,6 +811,12 @@ class Metrics:
             if swc > 0: ret['slat-write'] /= swc
             if iopsr > 0: ret['iops-read'] /= iopsr
             if iopsw > 0: ret['iops-write'] /= iopsw
+
+            # Adjust values to be in µs 
+            ret['clat-read'] /= 10**3
+            ret['clat-write'] /= 10**3
+            ret['slat-read'] /= 10**3
+            ret['slat-write'] /= 10**3
         else:
             print_detailed('Unable to interpret workload %s' % workload)
 
@@ -923,6 +928,8 @@ class Metrics:
         Metrics.__graph_throughput(job_name, graph_metrics, fig, klr)
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to build graph key lookup!')
     def __graph_key_lookup(key_type: str) -> dict:
         """Key lookup for graph metrics. Attempts to reduce code smell.
 
@@ -948,6 +955,8 @@ class Metrics:
         return lookup
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to graph latency!')
     def __graph_latency(job_name: str, graph_metrics: list, fig, key_lookup: dict):
         """Graphs latency.
 
@@ -986,6 +995,8 @@ class Metrics:
         plt.clf()
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to graph iops!')
     def __graph_iops(job_name: str, graph_metrics: list, fig, key_lookup: dict):
         """Graphs iops.
 
@@ -1018,6 +1029,8 @@ class Metrics:
         plt.clf()
 
     @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to graph throughput!')
     def __graph_throughput(job_name: str, graph_metrics: list, fig, key_lookup: dict):
         """Graphs throughput.
 
@@ -1050,6 +1063,7 @@ class Metrics:
         plt.clf()
 
     @staticmethod
+    @ignore_exception()
     def print(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
         """Prints metric information to STDOUT.
 
