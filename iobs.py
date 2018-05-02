@@ -209,7 +209,6 @@ class Mem:
         self.log = False
         self.output_file = None
         self.retry = 1
-        self.should_graph = False
         self.verbose = False
 
         # Global Job Settings
@@ -446,9 +445,6 @@ class Job:
 
             device_short = Mem.re_device.findall(self.device)[0]
             metrics_store.add(self.workload, device_short, scheduler, metrics)
-
-        if Mem.should_graph:
-            Metrics.graph(self.name, metrics_store)
 
         return True
 
@@ -865,202 +861,6 @@ class Metrics:
         metrics = defaultdict(int, {**metrics, **workload_metrics})
 
         return metrics
-
-    @staticmethod
-    def graph(job_name: str, metrics_store: MetricsStore):
-        """Graphs all metrics.
-
-        :param job_name: The name of the job.
-        :param metrics_store: The metrics.
-        """
-        fig = plt.figure()
-        metrics = metrics_store.get_all()
-        graph_metrics = []
-
-        # Build metric dict
-        for metric in metrics:
-            values = dict()
-
-            slat_write = float(metric['metrics']['slat-write'])
-            slat_read = float(metric['metrics']['slat-read'])
-            clat_write = float(metric['metrics']['clat-write'])
-            clat_read = float(metric['metrics']['clat-read'])
-            fslat_write = float(metric['metrics']['fslat-write'])
-            fslat_read = float(metric['metrics']['fslat-read'])
-            bslat = float(metric['metrics']['bslat'])
-
-            values['throughput_write'] = float(metric['metrics']['throughput-write']) / 1024
-            values['throughput_read'] = float(metric['metrics']['throughput-read']) / 1024
-            values['iops_write'] = float(metric['metrics']['iops-write'])
-            values['iops_read'] = float(metric['metrics']['iops-read'])
-            values['device'] = metric['device']
-            values['workload'] = metric['workload']
-            values['scheduler'] = metric['scheduler']
-
-            total_write = slat_write+clat_write
-            total_read = slat_read + clat_read
-
-            values['total_write'] = total_write
-            values['total_read'] = total_read
-            values['bar_total_write'] = slat_write+fslat_write+bslat
-            values['bar_total_read'] = slat_read+fslat_read+bslat
-            values['percent_write'] = ((slat_write+fslat_write+bslat)/total_write)*100 if total_write > 0 else 0
-            values['percent_read'] = ((slat_read+fslat_read+bslat)/total_read)*100 if total_read > 0 else 0
-            values['slat_percent_write'] = (slat_write/total_write)*100 if total_write > 0 else 0
-            values['slat_percent_read'] = (slat_read/total_read)*100  if total_read > 0 else 0
-            values['fslat_percent_write'] = (fslat_write/total_write)*100 if total_write > 0 else 0
-            values['fslat_percent_read'] = (fslat_read/total_read)*100  if total_read > 0 else 0
-            values['bslat_percent_write'] = (bslat/total_write)*100 if total_write > 0 else 0
-            values['bslat_percent_read'] = (bslat/total_read)*100  if total_read > 0 else 0
-
-            graph_metrics.append(values)
-
-        # Build key lookups
-        klw = Metrics.__graph_key_lookup('write')
-        klr = Metrics.__graph_key_lookup('read')
-
-        # Graph all the things
-        Metrics.__graph_latency(job_name, graph_metrics, fig, klw)
-        Metrics.__graph_latency(job_name, graph_metrics, fig, klr)
-        Metrics.__graph_iops(job_name, graph_metrics, fig, klw)
-        Metrics.__graph_iops(job_name, graph_metrics, fig, klr)
-        Metrics.__graph_throughput(job_name, graph_metrics, fig, klw)
-        Metrics.__graph_throughput(job_name, graph_metrics, fig, klr)
-
-    @staticmethod
-    @ignore_exception()
-    @log_around(exception_message='Unable to build graph key lookup!')
-    def __graph_key_lookup(key_type: str) -> dict:
-        """Key lookup for graph metrics. Attempts to reduce code smell.
-
-        :param key_type: The type of key, either 'read' or 'write'.
-        :return: A dictionary containing mappings to 'read' / 'write' versions of values.
-        """
-        lookup = dict()
-
-        if key_type not in ('read', 'write'):
-            log('Invalid key type given! Expected either read or write, given: %s' % key_type)
-            return None
-
-        lookup['type'] = key_type
-        lookup['throughput'] = 'throughput_%s' % key_type
-        lookup['iops'] = 'iops_%s' % key_type
-        lookup['total'] = 'total_%s' % key_type
-        lookup['bar_total'] = 'bar_total_%s' % key_type
-        lookup['percent'] = 'percent_%s' % key_type
-        lookup['slat_percent'] = 'slat_percent_%s' % key_type
-        lookup['fslat_percent'] = 'fslat_percent_%s' % key_type
-        lookup['bslat_percent'] = 'bslat_percent_%s' % key_type
-
-        return lookup
-
-    @staticmethod
-    @ignore_exception()
-    @log_around(exception_message='Unable to graph latency!')
-    def __graph_latency(job_name: str, graph_metrics: list, fig, key_lookup: dict):
-        """Graphs latency.
-
-        :param job_name: The name of the job.
-        :param graph_metrics: The job name.
-        :param fig: The matplotlib figure.
-        :param key_lookup: The key lookup for the graph metrics.
-        """
-        num_bars = len(graph_metrics)
-
-        if num_bars == 0:
-            log('No data to graph.')
-            return
-
-        ind = np.arange(num_bars)
-        width = 0.35
-        ax = fig.add_subplot(1, 1, 1)
-        ax.yaxis.set_major_formatter(ticker.PercentFormatter())
-
-        max_percent = max(list(graph_metrics[i][key_lookup['percent']] for i in range(num_bars)))
-        slat_set = np.array((list(graph_metrics[i][key_lookup['slat_percent']] for i in range(num_bars))))
-        fslat_set = np.array((list(graph_metrics[i][key_lookup['fslat_percent']] for i in range(num_bars))))
-        bslat_set = np.array((list(graph_metrics[i][key_lookup['bslat_percent']] for i in range(num_bars))))
-        plt.xticks(ind, (list(graph_metrics[i]['scheduler'] for i in range(num_bars))))
-
-        p1 = plt.bar(ind, slat_set, width, color='orange')
-        p2 = plt.bar(ind, fslat_set, width, bottom=slat_set, color='blue', hatch='/')
-        p3 = plt.bar(ind, bslat_set, width, bottom=slat_set + fslat_set, color='green')
-        plt.ylabel('% Total I/O Access Latency')
-        plt.title(graph_metrics[0]['device'] + '_' + job_name + '_latency_' + key_lookup['type'])
-        plt.yticks(np.arange(0, max_percent + (max_percent / 2), (max_percent / 6)))
-        plt.legend((p1, p2, p3), ('Submission (user time)', 'File System', 'Block Layer'), mode="expand", loc=2,
-                   ncol=3)
-        fig.savefig(graph_metrics[0]['device'] + '_' + job_name + '_latency_' + key_lookup['type'] + '.png', transparent=False,
-                    dpi=80, bbox_inches="tight")
-        plt.clf()
-
-    @staticmethod
-    @ignore_exception()
-    @log_around(exception_message='Unable to graph iops!')
-    def __graph_iops(job_name: str, graph_metrics: list, fig, key_lookup: dict):
-        """Graphs iops.
-
-        :param job_name: The name of the job.
-        :param graph_metrics: The job name.
-        :param fig: The matplotlib figure.
-        :param key_lookup: The key lookup for the graph metrics.
-        """
-        num_bars = len(graph_metrics)
-
-        if num_bars == 0:
-            log('No data to graph.')
-            return
-
-        ind = np.arange(num_bars)
-        width = 0.35
-        ax = fig.add_subplot(1, 1, 1)
-        ax.yaxis.set_major_formatter(ticker.PercentFormatter())
-
-        max_iops = max(list(graph_metrics[i][key_lookup['iops']] for i in range(num_bars)))
-        iops_set = np.array((list(graph_metrics[i][key_lookup['iops']] for i in range(num_bars))))
-        plt.xticks(ind, (list(graph_metrics[i]['scheduler'] for i in range(num_bars))))
-
-        plt.bar(ind, iops_set, width, color='green')
-        plt.ylabel('Operations')
-        plt.title(graph_metrics[0]['device'] + '_' + job_name + '_iops_' + key_lookup['type'])
-        plt.yticks(np.arange(0, max_iops + (max_iops / 2), (max_iops / 6)))
-        fig.savefig(graph_metrics[0]['device'] + '_' + job_name + '_iops_' + key_lookup['type'] + '.png', transparent=False,
-                    dpi=80, bbox_inches="tight")
-        plt.clf()
-
-    @staticmethod
-    @ignore_exception()
-    @log_around(exception_message='Unable to graph throughput!')
-    def __graph_throughput(job_name: str, graph_metrics: list, fig, key_lookup: dict):
-        """Graphs throughput.
-
-        :param job_name: The name of the job.
-        :param graph_metrics: The job name.
-        :param fig: The matplotlib figure.
-        :param key_lookup: The key lookup for the graph metrics.
-        """
-        num_bars = len(graph_metrics)
-
-        if num_bars == 0:
-            log('No data to graph.')
-            return
-
-        ind = np.arange(num_bars)
-        width = 0.35
-        ax = fig.add_subplot(1, 1, 1)
-        ax.yaxis.set_major_formatter(ticker.PercentFormatter())
-
-        max_throughput = max(list(graph_metrics[i][key_lookup['throughput']] for i in range(num_bars)))
-        throughput_set = np.array((list(graph_metrics[i][key_lookup['throughput']] for i in range(num_bars))))
-        plt.xticks(ind, (list(graph_metrics[i]['scheduler'] for i in range(num_bars))))
-
-        plt.bar(ind, throughput_set, width, color='red', hatch='/')
-        plt.ylabel('Bandwidth (MB/s)')
-        plt.title(graph_metrics[0]['device'] + '_' + job_name + '_throughput_' + key_lookup['type'])
-        plt.yticks(np.arange(0, max_throughput + (max_throughput / 2), (max_throughput / 6)))
-        fig.savefig(graph_metrics[0]['device'] + '_' + job_name + '_throughput_' + key_lookup['type'] + '.png', transparent=False,
-                    dpi=80, bbox_inches="tight")
-        plt.clf()
 
     @staticmethod
     @ignore_exception()
@@ -1540,7 +1340,6 @@ def usage():
     print('<file>            : The configuration file to use.')
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
     print('-l                : (OPTIONAL) Logs debugging information to an iobs.log file.')
-    print('-g                : (OPTIONAL) Outputs graphs based on metric information')
     print('-o <output>       : (OPTIONAL) Outputs metric information to a file.')
     print('-r <retry>        : (OPTIONAL) Used to retry a job more than once if failure occurs. Defaults to 1.')
     print('-v                : (OPTIONAL) Prints verbose information to the STDOUT.')
@@ -1565,8 +1364,6 @@ def parse_args(argv: list) -> bool:
                 return False
             elif opt == '-l':
                 Mem.log = True
-            elif opt == '-g':
-                Mem.should_graph = True
             elif opt == '-o':
                 Mem.output_file = arg
             elif opt == '-r':
