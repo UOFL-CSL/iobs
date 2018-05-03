@@ -549,9 +549,9 @@ class Job:
 
                 adj_command = adjusted_workload(self.command, self.workload)
 
-                start_time = strftime('%m/%d/%Y %I:%M:%S %p', localtime())
+                start_time = strftime('%m/%d/%y %I:%M:%S %p', localtime())
                 out = run_parallel_commands([('blktrace', self.delay, blktrace), (self.workload, 0, adj_command)])
-                stop_time = strftime('%m/%d/%Y %I:%M:%S %p', localtime())
+                stop_time = strftime('%m/%d/%y %I:%M:%S %p', localtime())
 
                 # Error running commands
                 if out is None or 'blktrace' in out and out['blktrace'] is None:
