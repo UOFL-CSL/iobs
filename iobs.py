@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 __author__ = 'Jared Gillespie, Martin Heil'
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 
 from collections import defaultdict
