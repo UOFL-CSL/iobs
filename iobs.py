@@ -22,6 +22,7 @@ __version__ = '0.3.0'
 from collections import defaultdict
 from functools import wraps
 from getopt import getopt, GetoptError
+from time import strftime, localtime
 
 import configparser
 import json
@@ -241,7 +242,8 @@ class Mem:
                                     'fslat-read', 'fslat-write',
                                     'bslat',
                                     'iops-read', 'iops-write',
-                                    'throughput-read', 'throughput-write']
+                                    'throughput-read', 'throughput-write',
+                                    'start-time', 'stop-time']
 
     @property
     def command(self) -> str:
@@ -436,7 +438,7 @@ class Job:
                 print_detailed('Unable to change scheduler %s for device %s' % (scheduler, self.device))
                 return False
 
-            metrics = self._execute_workload()
+            start_time, stop_time, metrics = self._execute_workload()
 
             metrics = defaultdict(int, metrics)
             metrics['fslat-read'] = metrics['clat-read'] - metrics['q2c']
@@ -445,6 +447,8 @@ class Job:
             metrics['workload'] = self.workload
             metrics['device'] = self.device
             metrics['scheduler'] = scheduler
+            metrics['start-time'] = start_time
+            metrics['stop-time'] = stop_time
 
             Metrics.print(self.name, self.workload, scheduler, self.device, metrics)
             Metrics.output(metrics)
@@ -516,7 +520,7 @@ class Job:
             self._schedulers is not None and \
             self._workload is not None
 
-    def _execute_workload(self):
+    def _execute_workload(self) -> tuple:
         """Executes a workload.
 
         :return: Returns a dictionary of metrics if successful, else None.
@@ -524,6 +528,9 @@ class Job:
         log('Executing workload %s' % self.workload)
 
         metrics = Metrics(self.workload)
+
+        start_time = ''
+        stop_time = ''
 
         # Repeat job multiple times
         for i in range(self.repetition):
@@ -542,7 +549,9 @@ class Job:
 
                 adj_command = adjusted_workload(self.command, self.workload)
 
+                start_time = strftime('%m/%d/%Y %I:%M:%S %p', localtime())
                 out = run_parallel_commands([('blktrace', self.delay, blktrace), (self.workload, 0, adj_command)])
+                stop_time = strftime('%m/%d/%Y %I:%M:%S %p', localtime())
 
                 # Error running commands
                 if out is None or 'blktrace' in out and out['blktrace'] is None:
@@ -611,7 +620,7 @@ class Job:
                 print_detailed('Unable to run workload %s' % self.workload)
                 return None
 
-        return metrics.average_metrics()
+        return start_time, stop_time, metrics.average_metrics()
 
 
 class MetricsStore:
