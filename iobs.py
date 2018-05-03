@@ -444,7 +444,7 @@ class Job:
             metrics['fslat-read'] = metrics['clat-read'] - metrics['q2c']
             metrics['fslat-write'] = metrics['clat-write'] - metrics['q2c']
             metrics['bslat'] = metrics['q2c'] - metrics['d2c']
-            metrics['workload'] = self.workload
+            metrics['workload'] = self.name
             metrics['device'] = self.device
             metrics['scheduler'] = scheduler
             metrics['start-time'] = start_time
