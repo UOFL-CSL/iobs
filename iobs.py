@@ -36,11 +36,6 @@ import signal
 import subprocess
 import sys
 import time
-import numpy as np
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
 
 # region termination
@@ -139,6 +134,17 @@ def log(*args, **kwargs):
             logging.debug(*args, **kwargs)
 
 
+def print_and_log(*args, **kwargs):
+    """Prints a message, and logs if logging is enabled.
+
+    :param args: The arguments.
+    :param kwargs: The keyword arguments.
+    """
+    log(*args, **kwargs)
+    args = [a.strip() if isinstance(a, str) else a for a in args]
+    print(*args, **kwargs)
+
+
 def print_detailed(*args, **kwargs):
     """Prints a message if verbose is enabled, and logs if logging is enabled.
 
@@ -147,21 +153,6 @@ def print_detailed(*args, **kwargs):
     """
     log(*args, **kwargs)
     print_verbose(*args, **kwargs)
-
-
-def print_output(*args, **kwargs):
-    """Prints a message to STDOUT, and to an output file if an output_file is specified.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments.
-    """
-    print(*args, **kwargs)
-
-    if Mem.output_file:
-        with open(Mem.output_file, 'a') as f:
-            for arg in args:
-                f.write(arg)
-                f.write('\n')
 
 
 def print_verbose(*args, **kwargs):
@@ -239,7 +230,18 @@ class Mem:
         self.valid_workloads = {'fio'}
 
         # Other
-        self.current_processes = set() # Keep track of current processes for killing purposes
+        self.current_processes = set()  # Keep track of current processes for killing purposes
+        self.output_column_order = ['device',
+                                    'workload',
+                                    'scheduler',
+                                    'slat-read', 'slat-write',
+                                    'clat-read', 'slat-write',
+                                    'q2c',
+                                    'd2c',
+                                    'fslat-read', 'fslat-write',
+                                    'bslat',
+                                    'iops-read', 'iops-write',
+                                    'throughput-read', 'throughput-write']
 
     @property
     def command(self) -> str:
@@ -440,8 +442,12 @@ class Job:
             metrics['fslat-read'] = metrics['clat-read'] - metrics['q2c']
             metrics['fslat-write'] = metrics['clat-write'] - metrics['q2c']
             metrics['bslat'] = metrics['q2c'] - metrics['d2c']
+            metrics['workload'] = self.workload
+            metrics['device'] = self.device
+            metrics['scheduler'] = scheduler
 
             Metrics.print(self.name, self.workload, scheduler, self.device, metrics)
+            Metrics.output(metrics)
 
             device_short = Mem.re_device.findall(self.device)[0]
             metrics_store.add(self.workload, device_short, scheduler, metrics)
@@ -687,6 +693,8 @@ class MetricsStore:
 class Metrics:
     """A group of metrics for a particular workload."""
 
+    __output_initialized = False
+
     def __init__(self, workload: str):
         self.workload = workload
         self._metrics = []
@@ -808,7 +816,7 @@ class Metrics:
             if iopsr > 0: ret['iops-read'] /= iopsr
             if iopsw > 0: ret['iops-write'] /= iopsw
 
-            # Adjust values to be in µs 
+            # Adjust values to be in µs
             ret['clat-read'] /= 10**3
             ret['clat-write'] /= 10**3
             ret['slat-read'] /= 10**3
@@ -864,6 +872,7 @@ class Metrics:
 
     @staticmethod
     @ignore_exception()
+    @log_around(exception_message='Unable to output metrics!')
     def print(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
         """Prints metric information to STDOUT.
 
@@ -873,17 +882,57 @@ class Metrics:
         :param device: The device.
         :param metrics: The metrics.
         """
+        print_and_log('%s [%s]:' % (job_name, workload))
+        print_and_log('  (%s) (%s):' % (scheduler, device))
+        print_and_log('    Submission Latency [µs]: (read): %.2f (write): %.2f' % (metrics['slat-read'], metrics['slat-write']))
+        print_and_log('    Completion Latency [µs]: (read): %.2f (write): %.2f' % (metrics['clat-read'], metrics['clat-write']))
+        print_and_log('    File System Latency [µs]: (read): %.2f (write): %.2f' % (metrics['fslat-read'], metrics['fslat-write']))
+        print_and_log('    Block Layer Latency [µs]: %.2f' % metrics['bslat'])
+        print_and_log('    Device Latency [µs]: %.2f' % metrics['d2c'])
+        print_and_log('    IOPS: (read) %.2f (write) %.2f' % (metrics['iops-read'], metrics['iops-write']))
+        print_and_log('    Throughput [1024 B/s]: (read) %.2f (write) %.2f' % (metrics['throughput-read'], metrics['throughput-write']))
 
-        print_output('%s [%s]:' % (job_name, workload))
-        print_output('  (%s) (%s):' % (scheduler, device))
-        print_output('    Submission Latency [µs]: (read): %.2f (write): %.2f' % (metrics['slat-read'], metrics['slat-write']))
-        print_output('    Completion Latency [µs]: (read): %.2f (write): %.2f' % (metrics['clat-read'], metrics['clat-write']))
-        print_output('    File System Latency [µs]: (read): %.2f (write): %.2f' % (metrics['fslat-read'], metrics['fslat-write']))
-        print_output('    Block Layer Latency [µs]: %.2f' % metrics['bslat'])
-        print_output('    Device Latency [µs]: %.2f' % metrics['d2c'])
-        print_output('    IOPS: (read) %.2f (write) %.2f' % (metrics['iops-read'], metrics['iops-write']))
-        print_output('    Throughput [1024 B/s]: (read) %.2f (write) %.2f' % (metrics['throughput-read'], metrics['throughput-write']))
+    @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to output metrics!')
+    def output(metrics: dict):
+        """Prints metric information in csv format to output file.
 
+        :param metrics: The metrics.
+        """
+        if Mem.output_file is not None:
+            if not Metrics.__output_initialized:
+                Metrics.__init_output()
+
+            with open(Mem.output_file, 'a') as file:
+                first = True
+                for column in Mem.output_column_order:
+                    if first:
+                        first = False
+                    else:
+                        file.write(',')
+
+                    val = metrics[column]
+
+                    if type(val) is float:
+                        file.write('%0.2f' % val)
+                    else:
+                        file.write(str(val))
+                file.write('\n')
+
+    @staticmethod
+    @ignore_exception()
+    @log_around(exception_message='Unable to create output file!')
+    def __init_output():
+        """Initializes output by creating file if doesn't already exist and adding header."""
+        Metrics.__output_initialized = True
+
+        # Create file if doesn't exist
+        if not os.path.isfile(Mem.output_file):
+            # Add header
+            with open(Mem.output_file, 'w') as file:
+                file.write(','.join(Mem.output_column_order))
+                file.write('\n')
 
 # endregion
 
@@ -1545,11 +1594,6 @@ def main(argv: list):
 
     if not check_trace_commands():
         sys.exit(1)
-
-    # Remove previous files
-    if Mem.output_file and os.path.isfile(Mem.output_file):
-        log('Deleting existing output file: %s' % Mem.output_file)
-        os.remove(Mem.output_file)
 
     # Beginning running jobs
     if not Mem.process_jobs():
