@@ -236,7 +236,7 @@ class Mem:
                                     'workload',
                                     'scheduler',
                                     'slat-read', 'slat-write',
-                                    'clat-read', 'slat-write',
+                                    'clat-read', 'clat-write',
                                     'q2c',
                                     'd2c',
                                     'fslat-read', 'fslat-write',
