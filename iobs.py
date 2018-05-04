@@ -851,13 +851,13 @@ class Metrics:
         throughput_read = Mem.re_blkparse_throughput_read.findall(blkparse_out)
 
         if throughput_read:
-            metrics['throughput-read'] = float(throughput_read[0])
+            metrics['throughput-read'] = float(throughput_read[0]) / 1024
             log('Grabbing metric %s: %s' % ('throughput-read', metrics['throughput-read']))
 
         throughput_write = Mem.re_blkparse_throughput_write.findall(blkparse_out)
 
         if throughput_write:
-            metrics['throughput-write'] = float(throughput_write[0])
+            metrics['throughput-write'] = float(throughput_write[0]) / 1024
             log('Grabbing metric %s: %s' % ('throughput-write', metrics['throughput-write']))
 
         # btt
@@ -899,7 +899,7 @@ class Metrics:
         print_and_log('    Block Layer Latency [µs]: %.2f' % metrics['bslat'])
         print_and_log('    Device Latency [µs]: %.2f' % metrics['d2c'])
         print_and_log('    IOPS: (read) %.2f (write) %.2f' % (metrics['iops-read'], metrics['iops-write']))
-        print_and_log('    Throughput [1024 B/s]: (read) %.2f (write) %.2f' % (metrics['throughput-read'], metrics['throughput-write']))
+        print_and_log('    Throughput [1024 MB/s]: (read) %.2f (write) %.2f' % (metrics['throughput-read'], metrics['throughput-write']))
 
     @staticmethod
     @ignore_exception()
