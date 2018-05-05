@@ -235,6 +235,7 @@ class Mem:
         # Other
         self.current_processes = set()  # Keep track of current processes for killing purposes
         self.output_column_order = ['device',
+                                    'io-depth',
                                     'workload',
                                     'scheduler',
                                     'slat-read', 'slat-write',
@@ -838,6 +839,8 @@ class Metrics:
                 ret['io-kbytes'] += float(job['write']['io_kbytes'])
                 if job['write']['io_kbytes'] > 0:
                     log('Grabbing metric %s: %s' % ('io-kbytes', job['write']['io_kbytes']))
+
+                ret['io-depth'] = int(job['job options']['iodepth'])
 
             # Compute averages
             if bwrc > 0: ret['bandwidth-read'] /= bwrc
