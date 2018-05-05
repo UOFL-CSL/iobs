@@ -912,7 +912,7 @@ class Metrics:
 
     @staticmethod
     @ignore_exception()
-    @log_around(exception_message='Unable to output metrics!')
+    @log_around(exception_message='Unable to output metrics to console!')
     def print(job_name: str, workload: str, scheduler: str, device: str, metrics: dict):
         """Prints metric information to STDOUT.
 
@@ -936,7 +936,7 @@ class Metrics:
 
     @staticmethod
     @ignore_exception()
-    @log_around(exception_message='Unable to output metrics!')
+    @log_around(exception_message='Unable to output metrics to file!')
     def output(metrics: dict):
         """Prints metric information in csv format to output file.
 
