@@ -63,11 +63,12 @@ def adjusted_workload(command: str, workload: str):
     return command
 
 
-def ignore_exception(exception=Exception, default_val=None):
+def ignore_exception(exception=Exception, default_val=None, should_log=True):
     """A decorator function that ignores the exception raised, and instead returns a default value.
 
     :param exception: The exception to catch.
     :param default_val: The default value.
+    :param should_log: Whether the exception should be logged.
     :return: The decorated function.
     """
     def decorator(func):
@@ -75,7 +76,8 @@ def ignore_exception(exception=Exception, default_val=None):
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except exception:
+            except exception as e:
+                log(exception)
                 return default_val
         return wrapper
     return decorator
