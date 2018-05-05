@@ -17,7 +17,7 @@
 __author__ = 'Jared Gillespie'
 __version__ = '0.1.0'
 
-from time import strptime, struct_time
+from time import mktime, strptime, struct_time
 
 import os
 import sys
@@ -83,6 +83,7 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
             sys.exit(1)
 
         print('Joules: %0.2f' % joules)
+        print('Timespan: %ss' % int(mktime(stop_time) - mktime(start_time)))
 
 
 def search_csv(hobo_file: str, inp_file: str):
