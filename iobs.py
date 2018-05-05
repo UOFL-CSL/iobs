@@ -112,7 +112,8 @@ def log_around(before_message: str=None, after_message: str=None, exception_mess
                     log(after_message)
 
                 return out
-            except Exception:
+            except Exception as e:
+                log(e)
                 if exception_message:
                     log(exception_message)
                 raise
