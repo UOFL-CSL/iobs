@@ -83,7 +83,7 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
             sys.exit(1)
 
         print('Joules: %0.2f' % joules)
-        print('Timespan: %ss' % int(mktime(stop_time) - mktime(start_time)))
+        print('Timespan: %ss' % int(mktime(stop_time) - mktime(start_time) + 1))
 
 
 def search_csv(hobo_file: str, inp_file: str):
