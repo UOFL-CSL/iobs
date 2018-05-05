@@ -26,14 +26,18 @@ import sys
 class RowInfo:
     """A single row for a CSV."""
 
-    def __init__(self, line, start_time, stop_time):
+    def __init__(self, line, start_time, stop_time, io_kbytes):
         self.line = line
-        self.w = 0
+        self.joules = 0
         self.start_time = start_time
         self.stop_time = stop_time
+        self.io_kbytes = io_kbytes
 
     def __str__(self):
-        return '%s,%0.2f' % (self.line, self.w)
+        if self.io_kbytes == 0:
+            return '%s,%0.2f' % (self.line, self.joules)
+        else:
+            return '%s,%0.2f,%0.2f' % (self.line, self.joules, self.joules / self.io_kbytes)
 
 
 def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_time):
@@ -43,7 +47,7 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
     :param start_time: The inclusive start of the average range.
     :param stop_time: The inclusive stop of the average range.
     """
-    w_sum = 0
+    joules = 0
     lc = 0
     found = False
     with open(hobo_file, 'r') as file:
@@ -60,7 +64,7 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
 
             if start_time <= date_time <= stop_time:
                 found = True
-                w_sum += float(w)
+                joules += float(w)
             else:
                 if start_time > date_time:
                     continue
@@ -78,7 +82,7 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
             usage()
             sys.exit(1)
 
-        print('Joules: %0.2f' % w_sum)
+        print('Joules: %0.2f' % joules)
 
 
 def search_csv(hobo_file: str, inp_file: str):
@@ -89,7 +93,7 @@ def search_csv(hobo_file: str, inp_file: str):
     """
     row_infos = []
     header = ''
-    start_index, stop_index = 0, 0
+    start_index, stop_index, io_kbytes_index = -1, -1, -1
     lc = 0
 
     # Read in input file
@@ -100,13 +104,17 @@ def search_csv(hobo_file: str, inp_file: str):
             # Find column indexes of start and stop
             if lc == 1:
                 header = line.strip()
-                start_index, stop_index = search_header(line.strip())
+                start_index, stop_index, io_kbytes_index = search_header(line.strip())
                 continue
 
             split = line.strip().split(',')
             start_time = strptime(split[start_index], '%m/%d/%y %I:%M:%S %p')
             stop_time = strptime(split[stop_index], '%m/%d/%y %I:%M:%S %p')
-            row_infos.append(RowInfo(line.strip(), start_time, stop_time))
+            if io_kbytes_index != -1:
+                io_kbytes = float(split[io_kbytes_index])
+            else:
+                io_kbytes = 0
+            row_infos.append(RowInfo(line.strip(), start_time, stop_time, io_kbytes))
 
     lc = 0
 
@@ -119,17 +127,21 @@ def search_csv(hobo_file: str, inp_file: str):
             if lc < 3:
                 continue
 
-            _, date_time, v, a, w, wh, _, _ = line.strip().split(',')
+            _, date_time, _, _, w, _, _, _ = line.strip().split(',')
 
             date_time = strptime(date_time, '%m/%d/%y %I:%M:%S %p')
 
             for row_info in row_infos:
                 if row_info.start_time <= date_time <= row_info.stop_time:
-                    row_info.w += float(w)
+                    row_info.joules += float(w)
 
     # Write output file
     with open(inp_file, 'w') as file:
-        file.write(header + ',joules\n')
+        file.write(header + ',joules')
+        if io_kbytes_index == -1:
+            file.write('\n')
+        else:
+            file.write(',kbpj\n')
 
         for row_info in row_infos:
             file.write(str(row_info))
@@ -140,15 +152,17 @@ def search_header(header: str):
     """Parses header for "start-time" and "stop-time" indexes.
 
     :param header: The header to parse.
-    :return: A tuple containing the (start_index, stop_index).
+    :return: A tuple containing the (start_index, stop_index, io_kbytes_index).
     """
-    start_index, stop_index = -1, -1
+    start_index, stop_index, io_kbytes_index = -1, -1, -1
 
     for index, column in enumerate(header.split(',')):
         if column == 'start-time':
             start_index = index
         elif column == 'stop-time':
             stop_index = index
+        elif column == 'io-kbytes':
+            io_kbytes_index = index
 
     if start_index == -1:
         raise Exception('Unable to parse header, expected "start-time"!')
@@ -156,7 +170,7 @@ def search_header(header: str):
     if stop_index == -1:
         raise Exception('Unable to parse header, expected "stop-time"!')
 
-    return start_index, stop_index
+    return start_index, stop_index, io_kbytes_index
 
 
 def usage():
