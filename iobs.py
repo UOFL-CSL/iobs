@@ -821,7 +821,7 @@ class Metrics:
                 ret['lat-write'] += float(job['write']['lat_ns']['mean'])
                 if job['write']['lat_ns']['mean'] > 0:
                     lwc += 1
-                    log('Grabbing metric %s: %s' % ('lat-write', job['write']['llat_ns']['mean']))
+                    log('Grabbing metric %s: %s' % ('lat-write', job['write']['lat_ns']['mean']))
 
                 ret['iops-read'] += float(job['read']['iops'])
                 if job['read']['iops'] > 0:
