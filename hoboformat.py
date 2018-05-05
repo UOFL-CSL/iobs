@@ -23,78 +23,17 @@ import os
 import sys
 
 
-class Averager:
-    """Object to hold counts and averages."""
-
-    def __init__(self):
-        self.__v = 0
-        self.__a = 0
-        self.__w = 0
-        self.__wh = 0
-        self.__count = 0
-
-    @property
-    def v(self):
-        if self.__count == 0:
-            return 0
-        return self.__v / self.__count
-
-    @v.setter
-    def v(self, value):
-        self.__v += value
-        self.__count += 1
-
-    @property
-    def a(self):
-        if self.__count == 0:
-            return 0
-        return self.__a / self.__count
-
-    @a.setter
-    def a(self, value):
-        self.__a += value
-        self.__count += 1
-
-    @property
-    def w(self):
-        if self.__count == 0:
-            return 0
-        return self.__w / self.__count
-
-    @w.setter
-    def w(self, value):
-        self.__w += value
-        self.__count += 1
-
-    @property
-    def wh(self):
-        if self.__count == 0:
-            return 0
-        return self.__wh / self.__count
-
-    @wh.setter
-    def wh(self, value):
-        self.__wh += value
-        self.__count += 1
-
-    def inc(self):
-        self.__count += 1
-
-    def __str__(self):
-        return str(self.v) + ',' + str(self.a) + ',' + str(self.w) + ',' + str(self.wh)
-
-
 class RowInfo:
     """A single row for a CSV."""
 
     def __init__(self, line, start_time, stop_time):
         self.line = line
-        self.averager = Averager()
+        self.w = 0
         self.start_time = start_time
         self.stop_time = stop_time
 
     def __str__(self):
-        return self.line + ',' + str(self.averager)
+        return '%s,%0.2f' % (self.line, self.w)
 
 
 def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_time):
@@ -104,7 +43,7 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
     :param start_time: The inclusive start of the average range.
     :param stop_time: The inclusive stop of the average range.
     """
-    avg = Averager()
+    w_sum = 0
     lc = 0
     found = False
     with open(hobo_file, 'r') as file:
@@ -115,17 +54,13 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
             if lc < 3:
                 continue
 
-            _, date_time, v, a, w, wh, _, _ = line.split(',')
+            _, date_time, _, _, w, _, _, _ = line.split(',')
 
             date_time = strptime(date_time, '%m/%d/%y %I:%M:%S %p')
 
             if start_time <= date_time <= stop_time:
                 found = True
-                avg.v = float(v)
-                avg.a = float(a)
-                avg.w = float(w)
-                avg.wh = float(wh)
-                avg.inc()
+                w_sum += float(w)
             else:
                 if start_time > date_time:
                     continue
@@ -143,18 +78,14 @@ def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_tim
             usage()
             sys.exit(1)
 
-        print('Averages:')
-        print('\tV:  %0.6f' % avg.v)
-        print('\tA:  %0.6f' % avg.a)
-        print('\tW:  %0.6f' % avg.w)
-        print('\tWh: %0.6f' % avg.wh)
+        print('Joules: %0.2f' % w_sum)
 
 
 def search_csv(hobo_file: str, inp_file: str):
-    """Averages values in a HOBO file for each row in the input file.
+    """Calculates joules in a HOBO file for each row in the input file.
 
     :param hobo_file:
-    :param iobs_file:
+    :param inp_file:
     """
     row_infos = []
     header = ''
@@ -194,15 +125,11 @@ def search_csv(hobo_file: str, inp_file: str):
 
             for row_info in row_infos:
                 if row_info.start_time <= date_time <= row_info.stop_time:
-                    row_info.averager.v = float(v)
-                    row_info.averager.a = float(a)
-                    row_info.averager.w = float(w)
-                    row_info.averager.wh = float(wh)
-                    row_info.averager.inc()
+                    row_info.w += float(w)
 
     # Write output file
     with open(inp_file, 'w') as file:
-        file.write(header + ',v,a,w,wh\n')
+        file.write(header + ',joules\n')
 
         for row_info in row_infos:
             file.write(str(row_info))
