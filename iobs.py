@@ -239,6 +239,7 @@ class Mem:
                                     'scheduler',
                                     'slat-read', 'slat-write',
                                     'clat-read', 'clat-write',
+                                    'lat-read', 'lat-write',
                                     'q2c',
                                     'd2c',
                                     'fslat-read', 'fslat-write',
@@ -775,6 +776,7 @@ class Metrics:
             bwrc, bwwc = 0, 0
             crc, cwc = 0, 0
             src, swc = 0, 0
+            lrc, lwc = 0, 0
             iopsr, iopsw = 0, 0
             iokb = 0,
 
@@ -809,6 +811,16 @@ class Metrics:
                     swc += 1
                     log('Grabbing metric %s: %s' % ('slat-write', job['write']['slat_ns']['mean']))
 
+                ret['lat-read'] += float(job['read']['lat_ns']['mean'])
+                if job['read']['lat_ns']['mean'] > 0:
+                    lrc += 1
+                    log('Grabbing metric %s: %s' % ('lat-read', job['read']['lat_ns']['mean']))
+
+                ret['lat-write'] += float(job['write']['lat_ns']['mean'])
+                if job['write']['lat_ns']['mean'] > 0:
+                    lwc += 1
+                    log('Grabbing metric %s: %s' % ('lat-write', job['write']['llat_ns']['mean']))
+
                 ret['iops-read'] += float(job['read']['iops'])
                 if job['read']['iops'] > 0:
                     iopsr += 1
@@ -834,6 +846,8 @@ class Metrics:
             if cwc > 0: ret['clat-write'] /= cwc
             if src > 0: ret['slat-read'] /= src
             if swc > 0: ret['slat-write'] /= swc
+            if lrc >0: ret['lat-read'] /= lrc
+            if lwc > 0: ret['lat-write'] /= lwc
             if iopsr > 0: ret['iops-read'] /= iopsr
             if iopsw > 0: ret['iops-write'] /= iopsw
 
@@ -842,6 +856,8 @@ class Metrics:
             ret['clat-write'] /= 10**3
             ret['slat-read'] /= 10**3
             ret['slat-write'] /= 10**3
+            ret['lat-read'] /= 10 ** 3
+            ret['lat-write'] /= 10 ** 3
         else:
             print_detailed('Unable to interpret workload %s' % workload)
 
@@ -905,6 +921,7 @@ class Metrics:
         """
         print_and_log('%s [%s]:' % (job_name, workload))
         print_and_log('  (%s) (%s):' % (scheduler, device))
+        print_and_log('    Latency [µs]: (read): %.2f (write): %.2f' % (metrics['lat-read'], metrics['lat-write']))
         print_and_log('    Submission Latency [µs]: (read): %.2f (write): %.2f' % (metrics['slat-read'], metrics['slat-write']))
         print_and_log('    Completion Latency [µs]: (read): %.2f (write): %.2f' % (metrics['clat-read'], metrics['clat-write']))
         print_and_log('    File System Latency [µs]: (read): %.2f (write): %.2f' % (metrics['fslat-read'], metrics['fslat-write']))
