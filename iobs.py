@@ -77,7 +77,7 @@ def ignore_exception(exception=Exception, default_val=None, should_log=True):
             try:
                 return func(*args, **kwargs)
             except exception as e:
-                log(exception)
+                log(str(e))
                 return default_val
         return wrapper
     return decorator
