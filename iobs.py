@@ -245,6 +245,7 @@ class Mem:
                                     'bslat',
                                     'iops-read', 'iops-write',
                                     'throughput-read', 'throughput-write',
+                                    'io-kbytes',
                                     'start-time', 'stop-time']
 
     @property
@@ -775,6 +776,7 @@ class Metrics:
             crc, cwc = 0, 0
             src, swc = 0, 0
             iopsr, iopsw = 0, 0
+            iokb = 0,
 
             for job in data['jobs']:
                 ret['bandwidth-read'] += float(job['read']['bw'])
@@ -816,6 +818,14 @@ class Metrics:
                 if job['write']['iops'] > 0:
                     iopsw += 1
                     log('Grabbing metric %s: %s' % ('iops-write', job['write']['iops']))
+
+                ret['io-kbytes'] += float(job['read']['io_kbytes'])
+                if job['read']['io_kbytes'] > 0:
+                    log('Grabbing metric %s: %s' % ('io-kbytes', job['read']['io_kbytes']))
+
+                ret['io-kbytes'] += float(job['write']['io_kbytes'])
+                if job['write']['io_kbytes'] > 0:
+                    log('Grabbing metric %s: %s' % ('io-kbytes', job['write']['io_kbytes']))
 
             # Compute averages
             if bwrc > 0: ret['bandwidth-read'] /= bwrc
@@ -902,6 +912,7 @@ class Metrics:
         print_and_log('    Device Latency [µs]: %.2f' % metrics['d2c'])
         print_and_log('    IOPS: (read) %.2f (write) %.2f' % (metrics['iops-read'], metrics['iops-write']))
         print_and_log('    Throughput [1024 MB/s]: (read) %.2f (write) %.2f' % (metrics['throughput-read'], metrics['throughput-write']))
+        print_and_log('    Total IO [KB]: %.2f' % metrics['io-kbytes'])
 
     @staticmethod
     @ignore_exception()
