@@ -1058,6 +1058,7 @@ def clear_caches(device: str):
     # Flushes the on-drive write cache buffer
     run_system_command('hdparm -F %s' % device)
 
+
 @log_around(after_message='Verified dependency exists',
             exception_message='Missing dependency',
             ret_validity=True)
