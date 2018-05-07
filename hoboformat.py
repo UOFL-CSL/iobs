@@ -37,7 +37,7 @@ class RowInfo:
         if self.io_kbytes == 0:
             return '%s,%0.2f' % (self.line, self.joules)
         else:
-            return '%s,%0.2f,%0.2f' % (self.line, self.joules, self.joules / self.io_kbytes)
+            return '%s,%0.2f,%0.2f' % (self.line, self.joules, self.io_kbytes / self.joules)
 
 
 def search_single(hobo_file: str, start_time: struct_time, stop_time: struct_time):
