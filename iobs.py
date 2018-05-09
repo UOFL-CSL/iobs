@@ -217,7 +217,7 @@ class Mem:
 
         # Formatters
         self.format_blktrace = 'blktrace -d %s -o %s -w %s -b 8196 -n 8'  # device, file prefix, runtime
-        self.format_blkparse = "blkparse -i %s -d %s.blkparse.bin"  # file prefix, file prefix
+        self.format_blkparse = "blkparse -i %s -d %s.blkparse.bin -q -O -M"  # file prefix, file prefix
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
         self.format_blkrawverify = 'blkrawverify %s' # file prefix
 
@@ -579,7 +579,7 @@ class Job:
                 # Run blkparse
                 blkparse = Mem.format_blkparse % (device_short, device_short)
 
-                blkparse_out, _ = run_command(blkparse)
+                _, _ = run_command(blkparse, ignore_output=True)
 
                 # Way too much cowbell (-f '' doesn't seem to trim output)
                 #log('BLKPARSE Output')
@@ -618,7 +618,7 @@ class Job:
                     cleanup_files('%s_iops_fp.dat' % dmm, '%s_mbps_fp.dat' % dmm)
                     cleanup_files('%s.verify.out' % device_short)
 
-                m = Metrics.gather_metrics(blkparse_out, btt_out, workload_out, self.workload)
+                m = Metrics.gather_metrics(None, btt_out, workload_out, self.workload)
                 metrics.add_metrics(m)
 
                 break
@@ -783,15 +783,15 @@ class Metrics:
             iokb = 0,
 
             for job in data['jobs']:
-                ret['bandwidth-read'] += float(job['read']['bw'])
+                ret['throughput-read'] += float(job['read']['bw']) / 1024
                 if job['read']['bw'] > 0:
                     bwrc += 1
-                    log('Grabbing metric %s: %s' % ('bandwidth-read', job['read']['bw']))
+                    log('Grabbing metric %s: %s' % ('throughput-read', job['read']['bw'] / 1024))
 
-                ret['bandwidth-write'] += float(job['write']['bw'])
+                ret['throughput-write'] += float(job['write']['bw']) / 1024
                 if job['write']['bw'] > 0:
                     bwwc += 1
-                    log('Grabbing metric %s: %s' % ('bandwidth-write', job['write']['bw']))
+                    log('Grabbing metric %s: %s' % ('throughput-write', job['write']['bw'] / 1024))
 
                 ret['clat-read'] += float(job['read']['clat_ns']['mean'])
                 if job['read']['clat_ns']['mean'] > 0:
@@ -844,8 +844,8 @@ class Metrics:
                 ret['io-depth'] = int(job['job options']['iodepth'])
 
             # Compute averages
-            if bwrc > 0: ret['bandwidth-read'] /= bwrc
-            if bwwc > 0: ret['bandwidth-write'] /= bwwc
+            if bwrc > 0: ret['throughput-read'] /= bwrc
+            if bwwc > 0: ret['throughput-write'] /= bwwc
             if crc > 0: ret['clat-read'] /= crc
             if cwc > 0: ret['clat-write'] /= cwc
             if src > 0: ret['slat-read'] /= src
@@ -880,17 +880,17 @@ class Metrics:
         metrics = dict()
 
         # blkparse
-        throughput_read = Mem.re_blkparse_throughput_read.findall(blkparse_out)
+        # throughput_read = Mem.re_blkparse_throughput_read.findall(blkparse_out)
 
-        if throughput_read:
-            metrics['throughput-read'] = float(throughput_read[0]) / 1024
-            log('Grabbing metric %s: %s' % ('throughput-read', metrics['throughput-read']))
+        # if throughput_read:
+        #     metrics['throughput-read'] = float(throughput_read[0]) / 1024
+        #     log('Grabbing metric %s: %s' % ('throughput-read', metrics['throughput-read']))
 
-        throughput_write = Mem.re_blkparse_throughput_write.findall(blkparse_out)
+        # throughput_write = Mem.re_blkparse_throughput_write.findall(blkparse_out)
 
-        if throughput_write:
-            metrics['throughput-write'] = float(throughput_write[0]) / 1024
-            log('Grabbing metric %s: %s' % ('throughput-write', metrics['throughput-write']))
+        # if throughput_write:
+        #     metrics['throughput-write'] = float(throughput_write[0]) / 1024
+        #     log('Grabbing metric %s: %s' % ('throughput-write', metrics['throughput-write']))
 
         # btt
         d2c = Mem.re_btt_d2c.findall(btt_out)
@@ -1218,11 +1218,12 @@ def is_valid_workload(workload: str) -> bool:
     return True
 
 
-def run_command(command: str, inp: str='') -> (str, int):
+def run_command(command: str, inp: str='', ignore_output: bool = False) -> (str, int):
     """Runs a command via subprocess communication.
 
     :param command: The command.
     :param inp: (OPTIONAL) Command input.
+    :param ignore_output: (OPTIONAL) Whether to ignore the output. Defaults to False.
     :return: A tuple containing (the output, the return code).
     """
     log('Running command %s with input %s' % (command, inp))
@@ -1235,16 +1236,26 @@ def run_command(command: str, inp: str='') -> (str, int):
 
         Mem.current_processes.add((command, p))
 
-        out, err = p.communicate(inp)
+        if ignore_output:
+            rc = p.wait()
 
-        rc = p.returncode
+            Mem.current_processes.clear()
 
-        Mem.current_processes.clear()
+            if rc != 0:
+                print_detailed('Error, return code is not zero!')
 
-        if err:
-            print_detailed(err.decode('utf-8'))
+            return '', rc
+        else:
+            out, err = p.communicate(inp)
 
-        return out.decode('utf-8'), rc
+            rc = p.returncode
+
+            Mem.current_processes.clear()
+
+            if err:
+                print_detailed(err.decode('utf-8'))
+
+            return out.decode('utf-8'), rc
     except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
         print_detailed(err)
         return None, None
