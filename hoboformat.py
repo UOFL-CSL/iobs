@@ -131,7 +131,10 @@ def search_csv(hobo_file: str, inp_file: str):
             try:
                 _, date_time, _, _, w, _, _, _ = line.strip().split(',')
             except:
-                continue
+                try:
+                    _, date_time, _, _, w, _, _ = line.strip().split(',')
+                except:
+                    continue
 
             date_time = strptime(date_time, '%m/%d/%y %I:%M:%S %p')
 
