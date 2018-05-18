@@ -216,7 +216,7 @@ class Mem:
         self._workload = None
 
         # Formatters
-        self.format_blktrace = 'blktrace -d %s -o %s -w %s -b 8196 -n 8'  # device, file prefix, runtime
+        self.format_blktrace = 'blktrace -d %s -o %s -w %s -b 16384 -n 8'  # device, file prefix, runtime
         self.format_blkparse = "blkparse -i %s -d %s.blkparse.bin -q -O -M"  # file prefix, file prefix
         self.format_btt = 'btt -i %s.blkparse.bin'  # file prefix
         self.format_blkrawverify = 'blkrawverify %s' # file prefix
