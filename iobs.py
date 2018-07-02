@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 __author__ = 'Jared Gillespie, Martin Heil'
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 
 from collections import defaultdict
@@ -1439,7 +1439,7 @@ def usage():
     """Displays command-line information."""
     name = os.path.basename(__file__)
     print('%s %s' % (name, __version__))
-    print('Usage: %s <file> [-c] [-l] [-g] [-o <output>] [-r <retry>] [-v] [-x]' % name)
+    print('Usage: %s <file> [-c] [-l] [-o <output>] [-r <retry>] [-v] [-x]' % name)
     print('Command Line Arguments:')
     print('<file>            : The configuration file to use.')
     print('-c                : (OPTIONAL) The application will continue in the case of a job failure.')
