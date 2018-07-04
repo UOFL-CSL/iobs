@@ -4,7 +4,7 @@ An I/O workload automation and metric analysis tool used to characterize differe
 ## Installation
 The latest version can be obtained via `wget`:
 ```bash
-$ wget https://raw.githubusercontent.com/JaredLGillespie/iobs/master/iobs.py
+$ wget https://raw.githubusercontent.com/UOFL-CSL/iobs/master/iobs.py
 ```
 ## Getting Started
 Executing the script without any arguments shows the different arguments that can be used:
@@ -34,7 +34,7 @@ The main input to the tool should be a file in [INI](https://en.wikipedia.org/wi
 
 Each of these commands should be under a header [...] indicating a specific job. The global header [global] can be used for configuring settings that are the same for all jobs.
 
-Example input files can be found under the [examples](https://github.com/JaredLGillespie/iobs/tree/master/examples) folder.
+Example input files can be found under the [examples](https://github.com/UOFL-CSL/iobs/tree/master/examples) folder.
 
 ### Output
 Upon completion of each job, the following metrics are output to STDOUT:
@@ -87,4 +87,4 @@ In addition to STDOUT, an output file can be given via the `[-o] < output>` comm
 * stop-time
 
 ## License
-Copyright (c) 2018 UofL Computer Systems Lab. See [LICENSE](https://github.com/JaredLGillespie/iobs/blob/master/LICENSE) for details.
+Copyright (c) 2018 UofL Computer Systems Lab. See [LICENSE](https://github.com/UOFL-CSL/iobs/blob/master/LICENSE) for details.
