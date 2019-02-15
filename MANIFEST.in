@@ -1,0 +1,6 @@
+include README.md
+include CHANGELOG.md
+include LICENSE
+include AUTHORS
+
+recursive-include examples
