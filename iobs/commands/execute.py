@@ -43,7 +43,7 @@ def check_args(args):
     if args.log_file:
         SettingsManager.set('log_enabled', True)
         log_level = get_log_level(args.log_level)
-        log_path = os.path.join(os.getcwd(), args.log_file)
+        log_path = os.path.join(args.log_file)
         logging.basicConfig(filename=log_path, level=log_level,
                             format='%(asctime)s - %(message)s')
     else:
@@ -105,12 +105,12 @@ def execute(args):
     Raises:
         IOBSBaseException: If error occurs and `continue_on_failure` not set.
     """
-    printf('Beginning program execution...',
-           print_type=PrintType.NORMAL | PrintType.INFO_LOG)
-
     check_args(args)
     validate_os()
     validate_privileges()
+
+    printf('Beginning program execution...',
+           print_type=PrintType.NORMAL | PrintType.INFO_LOG)
 
     for i, input_file in enumerate(args.inputs):
         try:
@@ -146,8 +146,8 @@ def main(args):
         '-o', '--output-directory',
         dest='output_directory',
         default=os.getcwd(),
-        help='The output directory for output and log files. Defaults to the '
-             'current working directory.'
+        help='The output directory for output files. Defaults to the current '
+             'working directory.'
     )
     parser.add_argument(
         '-l', '--log-file',

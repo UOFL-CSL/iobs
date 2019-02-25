@@ -45,6 +45,12 @@ _REGEX = {
 
 class SettingsManager:
     """Controls settings set by command-line arguments."""
+    continue_on_failure = False
+    log_enabled = False
+    output_directory = os.getcwd()
+    retry_count = 1
+    silent = False
+
     @staticmethod
     def get(*settings):
         """Retrieves attributes on self.

@@ -874,7 +874,8 @@ class FIOOutputConfiguration(OutputConfiguration):
             device: The device.
             scheduler: The scheduler.
         """
-        output_file = self.get_output_file()
+        output_base = os.path.basename(self.get_output_file())
+        output_file = os.path.splitext(output_base)[0]
         output_directory = SettingsManager.get('output_directory')
         output_path = os.path.join(output_directory, output_file)
 
@@ -927,7 +928,8 @@ class FIOOutputConfiguration(OutputConfiguration):
             device: The device.
             scheduler: The scheduler.
         """
-        output_file = self.get_output_file()
+        output_base = os.path.basename(self.get_output_file())
+        output_file = os.path.splitext(output_base)[0]
         output_directory = SettingsManager.get('output_directory')
         output_path = os.path.join(output_directory, output_file)
 
