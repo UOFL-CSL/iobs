@@ -408,7 +408,7 @@ class WorkloadConfiguration(ConfigSectionBase):
 
             output = self._try_process(job_type, file, device, scheduler)
             output_configuration.process(output, setting_permutation,
-                                         device, scheduler)
+                                         self._name, device, scheduler)
 
     def _try_process(self, job_type, file, device, scheduler):
         """Attempts to process a job with retrying if failure.
@@ -600,26 +600,28 @@ class OutputConfiguration(ConfigSectionBase):
 
     @abstractmethod
     def _write_header(self, output, template_order,
-                      setting_permutation_d, device, scheduler):
+                      setting_permutation_d, workload, device, scheduler):
         """Writes the header of the output file.
 
         Args:
             output: The job output.
             template_order: The ordered of setting permutations.
             setting_permutation_d: The setting permutation in dict form.
+            workload: The workload name.
             device: The device.
             scheduler: The scheduler.
         """
 
     @abstractmethod
     def _write_line(self, output, template_order,
-                    setting_permutation_d, device, scheduler):
+                    setting_permutation_d, workload, device, scheduler):
         """Writes a line of the output file.
 
         Args:
             output: The job output.
             template_order: The ordered of setting permutations.
             setting_permutation_d: The setting permutation in dict form.
+            workload: The workload name.
             device: The device.
             scheduler: The scheduler.
         """
@@ -656,12 +658,13 @@ class OutputConfiguration(ConfigSectionBase):
         """
         return self._input_file + '.csv'
 
-    def process(self, output, setting_permutation, device, scheduler):
+    def process(self, output, setting_permutation, workload, device, scheduler):
         """Processes the output of a job.
 
         Args:
             output: The job output.
             setting_permutation: The template settings permutation.
+            workload: The workload name.
             device: The device.
             scheduler: The scheduler.
         """
@@ -670,18 +673,18 @@ class OutputConfiguration(ConfigSectionBase):
 
         if self.append_template:
             template_order = sorted([x.split('=')[0] for x in setting_permutation])
-            spd = {}
+            setting_permutation_d = {}
             for sp in setting_permutation:
                 k, v = sp.split('=')
-                spd[k] = v
+                setting_permutation_d[k] = v
 
         if not self._wrote_header:
             self._write_header(output, template_order, setting_permutation_d,
-                               device, scheduler)
+                               workload, device, scheduler)
             self._wrote_header = True
 
         self._write_line(output, template_order, setting_permutation_d,
-                         device, scheduler)
+                         workload, device, scheduler)
 
     def _get_settings(self):
         """Retrieves the SettingAttributes for the configuration object.
@@ -864,13 +867,14 @@ class FIOOutputConfiguration(OutputConfiguration):
         }
 
     def _write_header(self, output, template_order, setting_permutation_d,
-                      device, scheduler):
+                      workload, device, scheduler):
         """Writes the header of the output file.
 
         Args:
             output: The job output.
             template_order: The ordered of setting permutations.
             setting_permutation_d: The setting permutation in dict form.
+            workload: The workload name.
             device: The device.
             scheduler: The scheduler.
         """
@@ -885,23 +889,22 @@ class FIOOutputConfiguration(OutputConfiguration):
         cpt = self._get_clat_percentiles_format_translation()
         po = self._get_percentiles_order(output)
 
-        first_line = True
         with open(output_path, 'w+') as f:
             for fi in self.format:
-                if not first_line:
-                    f.write(',')
-                first_line = False
-
                 if fi in ft:
                     f.write(ft[fi])
+                    f.write(',')
                 elif fi in ut:
                     f.write(ut[fi])
+                    f.write(',')
                 elif fi in lpt:
                     if self.include_lat_percentiles:
                         f.write(','.join(p for p in po if fi in p))
+                        f.write(',')
                 elif fi in cpt:
                     if self.include_clat_percentiles:
                         f.write(','.join(p for p in po if fi in p))
+                        f.write(',')
 
                 else:
                     raise OutputFormatError(
@@ -910,21 +913,20 @@ class FIOOutputConfiguration(OutputConfiguration):
 
             if self.append_template:
                 for t in template_order:
-                    if not first_line:
-                        f.write(',')
-                    first_line = False
                     f.write(t)
+                    f.write(',')
 
-            f.write('\n')
+            f.write('END\n')
 
     def _write_line(self, output, template_order, setting_permutation_d,
-                    device, scheduler):
+                    workload, device, scheduler):
         """Writes a line of the output file.
 
         Args:
             output: The job output.
             template_order: The ordered of setting permutations.
             setting_permutation_d: The setting permutation in dict form.
+            workload: The workload name.
             device: The device.
             scheduler: The scheduler.
         """
@@ -939,38 +941,40 @@ class FIOOutputConfiguration(OutputConfiguration):
         cpt = self._get_clat_percentiles_format_translation()
         po = self._get_percentiles_order(output)
 
-        first_line = True
         with open(output_path, 'a') as f:
             for fi in self.format:
-                if not first_line:
-                    f.write(',')
-                first_line = False
-
                 if fi in ft:
                     f.write(str(output[ft[fi]]))
+                    f.write(',')
                 elif fi in ut:
-                    if fi == 'device':
+                    if fi == 'workload':
+                        f.write(workload)
+                    elif fi == 'device':
                         f.write(device)
                     elif fi == 'scheduler':
                         f.write(scheduler)
+                    else:
+                        raise OutputFormatError(
+                            'Unable to write metric {}'.format(fi)
+                        )
+                    f.write(',')
                 elif fi in lpt:
                     if self.include_lat_percentiles:
-                        f.write(','.join(output[p] for p in po if fi in p))
+                        f.write(','.join(str(output[p]) for p in po if fi in p))
+                        f.write(',')
                 elif fi in cpt:
                     if self.include_clat_percentiles:
-                        f.write(','.join(output[p] for p in po if fi in p))
+                        f.write(','.join(str(output[p]) for p in po if fi in p))
+                        f.write(',')
                 else:
                     raise OutputFileError('Unable to write metric {}'.format(fi))
 
             if self.append_template:
                 for t in template_order:
-                    if not first_line:
-                        f.write(',')
-                    first_line = False
-
                     f.write(str(setting_permutation_d[t]))
+                    f.write(',')
 
-            f.write('\n')
+            f.write('END\n')
 # endregion
 
 
