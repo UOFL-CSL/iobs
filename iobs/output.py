@@ -45,7 +45,7 @@ def printf(*args, print_type=PrintType.NORMAL, **kwargs):
     """
     args = [a.strip() if isinstance(a, str) else a for a in args]
     silent = SettingsManager.get('silent')
-    log_enabled, log_level = SettingsManager.get('log_enabled', 'log_level')
+    log_enabled = SettingsManager.get('log_enabled')
 
     if not silent:
         if print_type & PrintType.NORMAL:
