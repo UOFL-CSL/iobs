@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Copyright (c) 2018, UofL Computer Systems Lab.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -13,16 +14,3 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-
-
-__title__ = 'iobs'
-__summary__ = 'Linux I/O Benchmark for Schedulers'
-__url__ = 'https://github.com/uofl-csl/iobs'
-
-__version__ = '1.0.0'
-
-__author__ = 'Jared Gillespie'
-__email__ = 'jared.gillespie@louisville.edu'
-
-__license__ = 'GNU General Public License v2 (GPLv2)'
-__copyright__ = 'Copyright (c) 2018, UofL Computer Systems Lab.'

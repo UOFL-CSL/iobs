@@ -58,5 +58,7 @@ setup(
     },
 
     python_requires='>=3.4',
-    install_requires=[]
+    install_requires=[
+        'colorama'
+    ]
 )
