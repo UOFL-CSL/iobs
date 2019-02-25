@@ -59,7 +59,7 @@ def printf(*args, print_type=PrintType.NORMAL, **kwargs):
 
     if log_enabled:
         if print_type & PrintType.ERROR_LOG:
-            logging.error(*args, **kwargs)
+            logging.error('ERROR: ' + args[0], *args[1:], **kwargs)
 
         if print_type & PrintType.INFO_LOG:
             logging.info(*args, **kwargs)
