@@ -250,7 +250,9 @@ The file will be executed with the appropriate command given the `workload_type`
 run `fio <file> --output-format=json`.
 
 ## Examples
+
 Usage examples can be found under the [examples](https://github.com/UOFL-CSL/iobs/tree/master/examples) folder.
 
 ## License
+
 Copyright (c) 2018 UofL Computer Systems Lab. See [LICENSE](https://github.com/UOFL-CSL/iobs/tree/master/LICENSE) for details.
