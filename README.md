@@ -104,7 +104,7 @@ file will always be `END`.
  * `format` (optional) - The metrics to write. Default and allowed format depend on `workload_type` (see below).
  * `append_template` (optional) - Whether to append the `template` combinations. Defaults to True.
    * **ex:** `append_template=1` 
-   ** *NOTE: This should be set to `False` if a custom format is given which includes `template` information.*
+   * *NOTE: This should be set to `False` if a custom format is given which includes `template` information.*
 
 The `format` accepts a list of metric names which should be retrieved from the workload and written in the output files.
 Each metric name can accept the full name or an abbreviated name (if there is one). Also, when using the `template` 
