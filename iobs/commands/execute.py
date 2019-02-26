@@ -161,7 +161,7 @@ def main(args):
         default=1,
         type=int,
         help='The level of information to which to log: 1 (Debug), '
-             '2 (Info), 3(Error). Defaults to 2.'
+             '2 (Info), 3 (Error). Defaults to 2.'
     )
     parser.add_argument(
         '-s', '--silent',
