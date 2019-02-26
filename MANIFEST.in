@@ -3,4 +3,4 @@ include CHANGELOG.md
 include LICENSE
 include AUTHORS
 
-recursive-include examples
+recursive-include examples *
