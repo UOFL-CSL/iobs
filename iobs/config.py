@@ -763,8 +763,8 @@ class FIOOutputConfiguration(OutputConfiguration):
             'clat-mean-write',
             'clat-stddev-read',
             'clat-stddev-write',
-            'clat-percentiles-read',
-            'clat-percentiles-write'
+            'clat-percentile-read',
+            'clat-percentile-write'
         ]
 
     def _get_format_translation(self):
@@ -812,36 +812,36 @@ class FIOOutputConfiguration(OutputConfiguration):
         f.update({x: x for x in f.values()})
         return f
 
-    def _get_clat_percentiles_format_translation(self):
-        """Retrieves percentiles format translation.
+    def _get_clat_percentile_format_translation(self):
+        """Retrieves percentile format translation.
 
         Returns:
             A dictionary mapping formats to metrics.
         """
         f = {
-            'cpr': 'clat-percentiles-read',
-            'cpw': 'clat-percentiles-write',
+            'cpr': 'clat-percentile-read',
+            'cpw': 'clat-percentile-write',
         }
 
         f.update({x: x for x in f.values()})
         return f
 
-    def _get_lat_percentiles_format_translation(self):
-        """Retrieves percentiles format translation.
+    def _get_lat_percentile_format_translation(self):
+        """Retrieves percentile format translation.
 
         Returns:
             A dictionary mapping formats to metrics.
         """
         f = {
-            'lpr': 'lat-percentiles-read',
-            'lpw': 'lat-percentiles-write'
+            'lpr': 'lat-percentile-read',
+            'lpw': 'lat-percentile-write'
         }
 
         f.update({x: x for x in f.values()})
         return f
 
-    def _get_percentiles_order(self, output):
-        """Returns a list of percentiles in ascending order.
+    def _get_percentile_order(self, output):
+        """Returns a list of percentile in ascending order.
 
         Args:
             output: The job output.
@@ -850,21 +850,25 @@ class FIOOutputConfiguration(OutputConfiguration):
             A list of strings.
         """
         return sorted([
-            x for x in output if 'percentiles' in x
-        ], key=lambda x: int(x.split('-')[-1]))
+            x for x in output if 'percentile' in x
+        ], key=lambda x: float(x.split('-')[-2]))
 
     def _get_settings(self):
         return {
             **super()._get_settings(),
-            'include_lat_percentiles': SettingAttribute(
+            'include_lat_percentile': SettingAttribute(
                 conversion_fn=cast_bool,
                 default_value=False
             ),
-            'include_clat_percentiles': SettingAttribute(
+            'include_clat_percentile': SettingAttribute(
                 conversion_fn=cast_bool,
                 default_value=False
             )
         }
+
+    def _compare_percentile_format(self, setting_name, percentile_metric):
+        pms = percentile_metric.split('-')
+        return setting_name == '-'.join([pms[0], pms[1], pms[3]])
 
     def _write_header(self, output, template_order, setting_permutation_d,
                       workload, device, scheduler):
@@ -885,9 +889,9 @@ class FIOOutputConfiguration(OutputConfiguration):
 
         ft = self._get_format_translation()
         ut = self._get_universal_format_translation()
-        lpt = self._get_lat_percentiles_format_translation()
-        cpt = self._get_clat_percentiles_format_translation()
-        po = self._get_percentiles_order(output)
+        lpt = self._get_lat_percentile_format_translation()
+        cpt = self._get_clat_percentile_format_translation()
+        po = self._get_percentile_order(output)
 
         with open(output_path, 'w+') as f:
             for fi in self.format:
@@ -898,12 +902,18 @@ class FIOOutputConfiguration(OutputConfiguration):
                     f.write(ut[fi])
                     f.write(',')
                 elif fi in lpt:
-                    if self.include_lat_percentiles:
-                        f.write(','.join(p for p in po if fi in p))
+                    if self.include_lat_percentile:
+                        f.write(','.join(
+                            p for p in po
+                            if self._compare_percentile_format(fi, p))
+                        )
                         f.write(',')
                 elif fi in cpt:
-                    if self.include_clat_percentiles:
-                        f.write(','.join(p for p in po if fi in p))
+                    if self.include_clat_percentile:
+                        f.write(','.join(
+                            p for p in po
+                            if self._compare_percentile_format(fi, p))
+                        )
                         f.write(',')
 
                 else:
@@ -937,9 +947,9 @@ class FIOOutputConfiguration(OutputConfiguration):
 
         ft = self._get_format_translation()
         ut = self._get_universal_format_translation()
-        lpt = self._get_lat_percentiles_format_translation()
-        cpt = self._get_clat_percentiles_format_translation()
-        po = self._get_percentiles_order(output)
+        lpt = self._get_lat_percentile_format_translation()
+        cpt = self._get_clat_percentile_format_translation()
+        po = self._get_percentile_order(output)
 
         with open(output_path, 'a') as f:
             for fi in self.format:
@@ -959,12 +969,18 @@ class FIOOutputConfiguration(OutputConfiguration):
                         )
                     f.write(',')
                 elif fi in lpt:
-                    if self.include_lat_percentiles:
-                        f.write(','.join(str(output[p]) for p in po if fi in p))
+                    if self.include_lat_percentile:
+                        f.write(','.join(str(
+                            output[p]) for p in po
+                            if self._compare_percentile_format(fi, p))
+                        )
                         f.write(',')
                 elif fi in cpt:
-                    if self.include_clat_percentiles:
-                        f.write(','.join(str(output[p]) for p in po if fi in p))
+                    if self.include_clat_percentile:
+                        f.write(','.join(str(
+                            output[p]) for p in po
+                            if self._compare_percentile_format(fi, p))
+                        )
                         f.write(',')
                 else:
                     raise OutputFileError('Unable to write metric {}'.format(fi))
