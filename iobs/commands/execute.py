@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 # Copyright (c) 2018, UofL Computer Systems Lab.
 #
 # This program is free software; you can redistribute it and/or modify
