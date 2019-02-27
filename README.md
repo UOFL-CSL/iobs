@@ -253,6 +253,10 @@ run `fio <file> --output-format=json`.
 
 Usage examples can be found under the [examples](https://github.com/UOFL-CSL/iobs/tree/master/examples) folder.
 
+## Changelog
+
+All changes and versioning information can be found in the [CHANGELOG](https://github.com/UOFL-CSL/iobs/tree/master/CHANGELOG.md).
+
 ## License
 
 Copyright (c) 2018 UofL Computer Systems Lab. See [LICENSE](https://github.com/UOFL-CSL/iobs/tree/master/LICENSE) for details.
