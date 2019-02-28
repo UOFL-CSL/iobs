@@ -18,6 +18,7 @@
 from iobs.config.globals import FIOGlobalConfiguration
 from iobs.config.jobs import FIOJob
 from iobs.config.outputs import FIOOutputConfiguration
+from iobs.config.templates import FIOTemplateConfiguration
 from iobs.config.workloads import FIOWorkloadConfiguration
 from iobs.errors import UndefinedWorkloadTypeError
 
@@ -43,6 +44,15 @@ def get_job_type(workload_type):
 def get_output_configuration_type(workload_type):
     if workload_type == 'fio':
         return FIOOutputConfiguration
+
+    raise UndefinedWorkloadTypeError(
+        'workload_type {} is not defined'.format(workload_type)
+    )
+
+
+def get_template_configuration_type(workload_type):
+    if workload_type == 'fio':
+        return FIOTemplateConfiguration
 
     raise UndefinedWorkloadTypeError(
         'workload_type {} is not defined'.format(workload_type)

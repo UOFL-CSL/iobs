@@ -22,9 +22,9 @@ from iobs.config.base import Configuration
 from iobs.config.factory import (
     get_global_configuration_type,
     get_output_configuration_type,
+    get_template_configuration_type,
     get_workload_configuration_type
 )
-from iobs.config.templates import TemplateConfiguration
 from iobs.errors import (
     ConfigNotFoundError,
     InvalidConfigError
@@ -65,13 +65,14 @@ def parse_config_file(input_file):
     template_header = get_constant('config_header_template')
 
     workload_type = get_workload_type(config_parser)
-    workload_configuration_type = get_workload_configuration_type(workload_type)
     global_configuration_type = get_global_configuration_type(workload_type)
     output_configuration_type = get_output_configuration_type(workload_type)
+    template_configuration_type = get_template_configuration_type(workload_type)
+    workload_configuration_type = get_workload_configuration_type(workload_type)
 
     global_configuration = global_configuration_type()
     output_configuration = output_configuration_type(input_file)
-    template_configuration = TemplateConfiguration()
+    template_configuration = template_configuration_type()
     configuration = Configuration(
         input_file,
         workload_type,

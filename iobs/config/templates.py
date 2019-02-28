@@ -161,3 +161,6 @@ class TemplateConfiguration(ConfigSectionBase):
             )
         }
 
+
+class FIOTemplateConfiguration(TemplateConfiguration):
+    pass
