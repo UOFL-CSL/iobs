@@ -63,13 +63,14 @@ def ignore_exception(exception, default_val):
     return decorator
 
 
-def try_split(s, delimiter=','):
+def try_split(s, delimiter=',', convert_type=str):
     """Tries to split a string by the given delimiter(s).
 
     Args:
         s: The string to split.
         delimiter: Either a single string, or a tuple of strings
-            (i.e. (',', ';').
+            (i.e. (',', ';'). Defaults to ','.
+        convert_type: Type to convert elements to. Defaults to str.
 
     Returns:
         The string split into a list.
@@ -77,8 +78,8 @@ def try_split(s, delimiter=','):
     if isinstance(delimiter, tuple):
         for d in delimiter:
             if d in s:
-                return [i.strip() for i in s.split(d)]
+                return [convert_type(i.strip()) for i in s.split(d)]
     elif delimiter in s:
-        return s.split(delimiter)
+        return [convert_type(i.strip()) for i in s.split(delimiter)]
 
-    return [s]
+    return [convert_type(s.strip())]

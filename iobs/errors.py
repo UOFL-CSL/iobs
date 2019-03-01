@@ -47,6 +47,10 @@ class JobExecutionError(IOBSBaseException):
     """Job Execution Error"""
 
 
+class NomergesChangeError(IOBSBaseException):
+    """Nomerges Change Error"""
+
+
 class OutputFileError(IOBSBaseException):
     """Output File Error"""
 
