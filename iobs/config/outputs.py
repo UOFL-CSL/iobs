@@ -412,7 +412,12 @@ class FIOOutputConfiguration(OutputConfiguration):
                             if self._compare_percentile_format(fi, p))
                         )
                         f.write(',')
-
+                elif fi in template_spd:
+                    f.write(fi)
+                    f.write(',')
+                elif fi in environment_spd:
+                    f.write(fi)
+                    f.write(',')
                 else:
                     raise OutputFormatError(
                         'Output format is invalid, unable to parse {}'.format(fi)
@@ -487,6 +492,12 @@ class FIOOutputConfiguration(OutputConfiguration):
                             if self._compare_percentile_format(fi, p))
                         )
                         f.write(',')
+                elif fi in template_spd:
+                    f.write(str(template_spd[fi]))
+                    f.write(',')
+                elif fi in environment_spd:
+                    f.write(str(environment_spd[fi]))
+                    f.write(',')
                 else:
                     raise OutputFileError('Unable to write metric {}'.format(fi))
 
