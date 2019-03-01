@@ -27,6 +27,7 @@ from iobs.errors import (
 
 
 _CONSTANTS = {
+    'config_header_environment': 'environment',
     'config_header_global': 'global',
     'config_header_output': 'output',
     'config_header_template': 'template',
@@ -84,26 +85,6 @@ class SettingsManager:
             value: The value to set the attribute to.
         """
         setattr(SettingsManager, setting, value)
-
-
-class SettingAttribute:
-    """Attribute properties for settings.
-
-    Args:
-        conversion_fn: Function to convert the string representation into
-            another type.
-        validation_fn: Function to validate the value of the setting.
-        dependent_attributes: Other attributes which this is dependent on.
-        default_value: Default value if none explicitly assigned.
-    """
-    def __init__(self, conversion_fn=lambda x: str(x),
-                 validation_fn=lambda x: True,
-                 dependent_attributes=None,
-                 default_value=None):
-        self.conversion_fn = conversion_fn
-        self.validation_fn = validation_fn
-        self.dependent_attributes = dependent_attributes
-        self.default_value = default_value
 
 
 def get_constant(name):
@@ -181,81 +162,3 @@ def match_regex(string, regex_name):
         return None
 
     return match[1]
-
-
-def validate_setting(obj, setting_name, setting):
-    """Validates the setting attribute on an object.
-
-    Args:
-        obj: The object.
-        setting_name: The attribute.
-        setting: The SettingAttribute.
-
-    Raises:
-        InvalidSettingError: If no value set and `default_value` not set on
-            `setting`. Or if fails `validate_fn` on `setting`.
-    """
-    setting_value = getattr(obj, setting_name, None)
-    if setting_value is None:
-        if setting.default_value is None:
-            raise InvalidSettingError(
-                'Required setting {} is not defined'.format(setting_name)
-            )
-
-        setting_value = setting.default_value
-        setattr(obj, setting_name, setting.default_value)
-
-    if not setting.validation_fn(setting_value):
-        raise InvalidSettingError(
-            'Setting {}={} is not valid'.format(setting_name, setting_value)
-        )
-
-
-def validate_settings(obj, settings):
-    """Validates the settings on an object.
-
-    Args:
-        obj: An object to check attributes of.
-        settings: A dictionary mapping names to SettingAttributes.
-
-    Raises:
-        InvalidSettingError: If settings are not valid or dependencies not met.
-    """
-    # NOTE: Assumes that there are no circular dependencies
-    roots = {
-        k for k, v in settings.items()
-        if not v.dependent_attributes
-    }
-    unvalidated = {
-        k for k, v in settings.items()
-        if v.dependent_attributes
-    }
-    inc_deps = {s: set() for s in settings}
-    out_deps = {
-        k: set(v.dependent_attributes)
-        for k, v in settings.items()
-        if v.dependent_attributes
-    }
-
-    for k, v in settings.items():
-        if v.dependent_attributes:
-            for dep in v.dependent_attributes:
-                inc_deps[dep].add(k)
-
-    while roots:
-        setting_name = roots.pop()
-        setting = settings[setting_name]
-        validate_setting(obj, setting_name, setting)
-
-        for dep in inc_deps[setting_name]:
-            out_deps[dep].remove(setting_name)
-            if not out_deps[dep]:
-                del out_deps[dep]
-                unvalidated.remove(dep)
-                roots.add(dep)
-
-    if unvalidated:
-        raise InvalidSettingError(
-            'Setting(s) {} do not have dependencies met'
-            .format(', '.join(unvalidated))
-        )

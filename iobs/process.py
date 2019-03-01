@@ -22,7 +22,10 @@ import signal
 import stat
 import subprocess
 
-from iobs.errors import SchedulerChangeError
+from iobs.errors import (
+    NomergesChangeError,
+    SchedulerChangeError
+)
 from iobs.output import printf, PrintType
 from iobs.settings import (
     match_regex
@@ -133,6 +136,31 @@ class ProcessManager:
                        print_type=PrintType.DEBUG_LOG)
 
 
+def change_nomerges(device, nomerges):
+    """Changes the nomerges setting for the given device.
+
+    Args:
+        device: The device.
+        nomerges: The nomerges setting.
+
+    Returns:
+        True if successful, else False.
+    """
+    printf('Changing nomerges for device {} to {}'.format(device, nomerges),
+           print_type=PrintType.DEBUG_LOG)
+
+    command = 'bash -c "echo {} > /sys/block/{}/queue/nomerges"' \
+              .format(nomerges, match_regex(device, 'device_name'))
+
+    _, rc = run_command(command)
+
+    if rc != 0:
+        raise NomergesChangeError(
+            'Unable to change nomerges to {} for device {}'
+            .format(nomerges, device)
+        )
+
+
 def change_scheduler(device, scheduler):
     """Changes the I/O scheduler for the given device.
 
@@ -153,7 +181,8 @@ def change_scheduler(device, scheduler):
 
     if rc != 0:
         raise SchedulerChangeError(
-            'Unable to change scheduler {} for device {}'.format(scheduler, device)
+            'Unable to change scheduler to {} for device {}'
+            .format(scheduler, device)
         )
 
 

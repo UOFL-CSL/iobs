@@ -104,7 +104,12 @@ file will always be `END`.
  * `format` (optional) - The metrics to write. Default and allowed format depend on `workload_type` (see below).
  * `append_template` (optional) - Whether to append the `template` combinations. Defaults to True.
    * **ex:** `append_template=1` 
-   * *NOTE: This should be set to `False` if a custom format is given which includes `template` information.*
+   * *NOTE: This should be set to `False` if a custom format is given which includes `template` information. Otherwise
+            duplicate columns will be added to the output.*
+ * `append_environment` (optional) - Whether to append the `environment` combinations. Defaults to True.
+   * **ex:** `append_environment=1`
+   * *NOTE: This should be set to `False` if a custom format is given which includes `environment` information. Otherwise
+            duplicate columns will be added to the output.*
 
 The `format` accepts a list of metric names which should be retrieved from the workload and written in the output files.
 Each metric name can accept the full name or an abbreviated name (if there is one). Also, when using the `template` 
@@ -216,8 +221,8 @@ The default `format` used if none is given is the following:
 
 Template settings for interpolating different setting combinations into `workload` files.
 
-* `enabled` (optional) - Whether to enable templating. Defaults to False.
-  * **ex:** `enabled=1`
+ * `enabled` (optional) - Whether to enable templating. Defaults to False.
+   * **ex:** `enabled=1`
 
 All other settings added under this section are used to interpolate the `workload` files. When files are interpolated,
 an interpolated copy is made with the name `__temp__` appended to them. To provide settings to interpolate within a 
@@ -236,6 +241,19 @@ iodepth=1,2,4,8,16
 
 In this example, the combination of the settings is (rw=randread, iodepth=1), (rw=randread, iodepth=2), ... The following
 will be interpolated in the file `<%rw%>` and `<%iodepth%>` and replaced with their combination values.
+
+### `environment`
+
+Environment settings for manipulating the environment for workloads.
+
+ * `enabled` (optional) - Whether to enable environment changes. Defaults to False.
+   * **ex:** `enabled=1`
+ * `nomerges` (optional) - Sets device merging to one of the following: 0 (enabled), 1 (some merging), 2 (disabled).
+   * **ex:** `nomerges=0,1,2`
+   * *NOTE: Setting is added as a workload setting combination.*
+
+Environment settings can be added to the template `format` by either specifying them in a custom format, or by enabling
+them with the `append_environment` setting under the `output` section.
 
 ### workloads
 
