@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Template settings should appear in output if specified in format.
+- Fixed output file extension as ".csv".
 
 ## [1.0.0] - 2019-02-26
 ### Changed

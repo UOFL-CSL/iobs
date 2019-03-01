@@ -109,7 +109,10 @@ class OutputConfiguration(ConfigSectionBase):
         Returns:
             The output file name.
         """
-        return self._input_file + '.csv'
+        output_base = os.path.basename(self._input_file)
+        output_file = os.path.splitext(output_base)[0] + '.csv'
+        output_directory = SettingsManager.get('output_directory')
+        return os.path.join(output_directory, output_file)
 
     def process(self, output, workload, device, scheduler,
                 template_setting_permutation, environment_setting_permutation):
@@ -379,10 +382,7 @@ class FIOOutputConfiguration(OutputConfiguration):
             environment_order: The ordered of environment setting permutations.
             environment_spd: The environment setting permutation in dict form.
         """
-        output_base = os.path.basename(self.get_output_file())
-        output_file = os.path.splitext(output_base)[0]
-        output_directory = SettingsManager.get('output_directory')
-        output_path = os.path.join(output_directory, output_file)
+        output_file = self.get_output_file()
 
         ft = self._get_format_translation()
         ut = self._get_universal_format_translation()
@@ -390,7 +390,7 @@ class FIOOutputConfiguration(OutputConfiguration):
         cpt = self._get_clat_percentile_format_translation()
         po = self._get_percentile_order(output)
 
-        with open(output_path, 'w+') as f:
+        with open(output_file, 'w+') as f:
             for fi in self.format:
                 if fi in ft:
                     f.write(ft[fi])
@@ -450,10 +450,7 @@ class FIOOutputConfiguration(OutputConfiguration):
             environment_order: The ordered of environment setting permutations.
             environment_spd: The environment setting permutation in dict form.
         """
-        output_base = os.path.basename(self.get_output_file())
-        output_file = os.path.splitext(output_base)[0]
-        output_directory = SettingsManager.get('output_directory')
-        output_path = os.path.join(output_directory, output_file)
+        output_file = self.get_output_file()
 
         ft = self._get_format_translation()
         ut = self._get_universal_format_translation()
@@ -461,7 +458,7 @@ class FIOOutputConfiguration(OutputConfiguration):
         cpt = self._get_clat_percentile_format_translation()
         po = self._get_percentile_order(output)
 
-        with open(output_path, 'a') as f:
+        with open(output_file, 'a') as f:
             for fi in self.format:
                 if fi in ft:
                     f.write(str(output[ft[fi]]))
