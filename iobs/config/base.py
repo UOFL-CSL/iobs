@@ -39,6 +39,7 @@ class ConfigAttribute:
         self.validation_fn = validation_fn
         self.dependent_attributes = dependent_attributes
         self.default_value = default_value
+        self.default_used = False
 
 
 class ConfigSectionBase(ABC):
@@ -127,6 +128,7 @@ class ConfigSectionBase(ABC):
                 )
 
             setting_value = setting.default_value
+            setting.default_used = True
             setattr(self, setting_name, setting.default_value)
 
         if not setting.validation_fn(setting_value):
@@ -146,12 +148,14 @@ class Configuration:
         template_configuration: The TemplateConfiguration.
     """
     def __init__(self, input_file, workload_type, global_configuration,
-                 output_configuration, template_configuration):
+                 output_configuration, template_configuration,
+                 environment_configuration):
         self._workload_type = workload_type
         self._input_file = input_file
         self._global_configuration = global_configuration
         self._output_configuration = output_configuration
         self._template_configuration = template_configuration
+        self._environment_configuration = environment_configuration
         self._workload_configurations = []
 
     def add_workload_configuration(self, workload_configuration):
@@ -171,7 +175,8 @@ class Configuration:
             wc.process(
                 self._output_configuration,
                 self._global_configuration,
-                self._template_configuration
+                self._template_configuration,
+                self._environment_configuration
             )
 
     def validate(self):
@@ -179,6 +184,7 @@ class Configuration:
         printf('Validating input file {}'.format(self._input_file),
                print_type=PrintType.DEBUG_LOG)
 
+        self._environment_configuration.validate()
         self._global_configuration.validate()
         self._output_configuration.validate()
         self._template_configuration.validate()

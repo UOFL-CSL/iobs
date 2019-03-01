@@ -15,6 +15,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
+from iobs.config.environments import FIOEnvironmentConfiguration
 from iobs.config.globals import FIOGlobalConfiguration
 from iobs.config.jobs import FIOJob
 from iobs.config.outputs import FIOOutputConfiguration
@@ -35,6 +36,15 @@ def get_global_configuration_type(workload_type):
 def get_job_type(workload_type):
     if workload_type == 'fio':
         return FIOJob
+
+    raise UndefinedWorkloadTypeError(
+        'workload_type {} is not defined'.format(workload_type)
+    )
+
+
+def get_environment_configuration_type(workload_type):
+    if workload_type == 'fio':
+        return FIOEnvironmentConfiguration
 
     raise UndefinedWorkloadTypeError(
         'workload_type {} is not defined'.format(workload_type)

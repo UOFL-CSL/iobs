@@ -46,31 +46,37 @@ class OutputConfiguration(ConfigSectionBase):
         self._wrote_header = False
 
     @abstractmethod
-    def _write_header(self, output, template_order,
-                      setting_permutation_d, workload, device, scheduler):
+    def _write_header(self, output, workload, device, scheduler,
+                      template_order, template_spd,
+                      environment_order, environment_spd):
         """Writes the header of the output file.
 
         Args:
             output: The job output.
-            template_order: The ordered of setting permutations.
-            setting_permutation_d: The setting permutation in dict form.
             workload: The workload name.
             device: The device.
             scheduler: The scheduler.
+            template_order: The ordered of template setting permutations.
+            template_spd: The template setting permutation in dict form.
+            environment_order: The ordered of environment setting permutations.
+            environment_spd: The environment setting permutation in dict form.
         """
 
     @abstractmethod
-    def _write_line(self, output, template_order,
-                    setting_permutation_d, workload, device, scheduler):
+    def _write_line(self, output, workload, device, scheduler,
+                    template_order, template_spd,
+                    environment_order, environment_spd):
         """Writes a line of the output file.
 
         Args:
             output: The job output.
-            template_order: The ordered of setting permutations.
-            setting_permutation_d: The setting permutation in dict form.
             workload: The workload name.
             device: The device.
             scheduler: The scheduler.
+            template_order: The ordered of template setting permutations.
+            template_spd: The template setting permutation in dict form.
+            environment_order: The ordered of environment setting permutations.
+            environment_spd: The environment setting permutation in dict form.
         """
 
     @abstractmethod
@@ -105,33 +111,70 @@ class OutputConfiguration(ConfigSectionBase):
         """
         return self._input_file + '.csv'
 
-    def process(self, output, setting_permutation, workload, device, scheduler):
+    def process(self, output, workload, device, scheduler,
+                template_setting_permutation, environment_setting_permutation):
         """Processes the output of a job.
 
         Args:
             output: The job output.
-            setting_permutation: The template settings permutation.
             workload: The workload name.
             device: The device.
             scheduler: The scheduler.
+            template_setting_permutation: The template settings permutation.
+            environment_setting_permutation: The environment settings permutation.
         """
         template_order = None
-        setting_permutation_d = None
+        template_spd = None
 
         if self.append_template:
-            template_order = sorted([x.split('=')[0] for x in setting_permutation])
-            setting_permutation_d = {}
-            for sp in setting_permutation:
-                k, v = sp.split('=')
-                setting_permutation_d[k] = v
+            template_order = self._get_permutation_order(template_setting_permutation)
+            template_spd = self._get_permutation_setting_dict(template_setting_permutation)
+
+        environment_order = None
+        environment_spd = None
+
+        if self.append_environment:
+            environment_order = self._get_permutation_order(environment_setting_permutation)
+            environment_spd = self._get_permutation_setting_dict(environment_setting_permutation)
 
         if not self._wrote_header:
-            self._write_header(output, template_order, setting_permutation_d,
-                               workload, device, scheduler)
+            self._write_header(output, workload, device, scheduler,
+                               template_order, template_spd,
+                               environment_order, environment_spd)
             self._wrote_header = True
 
-        self._write_line(output, template_order, setting_permutation_d,
-                         workload, device, scheduler)
+        self._write_line(output, workload, device, scheduler,
+                         template_order, template_spd,
+                         environment_order, environment_spd)
+
+    def _get_permutation_order(self, setting_permutation):
+        """Retrieves a consistent ordering of setting permutation.
+
+        Args:
+            setting_permutation: The setting permutation.
+
+        Returns:
+            List of setting names.
+        """
+        return sorted([
+            x.split('=')[0]
+            for x in setting_permutation
+        ])
+
+    def _get_permutation_setting_dict(self, setting_permutation):
+        """Converts a setting permutation into a dictionary mapping.
+
+        Args:
+            setting_permutation: The setting permutation.
+
+        Returns:
+            Dict mapping setting name to value.
+        """
+        spd = {}
+        for sp in setting_permutation:
+            k, v = sp.split('=')
+            spd[k] = v
+        return spd
 
     def _get_settings(self):
         """Retrieves the ConfigAttributes for the configuration object.
@@ -145,6 +188,10 @@ class OutputConfiguration(ConfigSectionBase):
                 default_value=self._get_default_format()
             ),
             'append_template': ConfigAttribute(
+                conversion_fn=cast_bool,
+                default_value=True
+            ),
+            'append_environment': ConfigAttribute(
                 conversion_fn=cast_bool,
                 default_value=True
             )
@@ -317,17 +364,20 @@ class FIOOutputConfiguration(OutputConfiguration):
         pms = percentile_metric.split('-')
         return setting_name == '-'.join([pms[0], pms[1], pms[3]])
 
-    def _write_header(self, output, template_order, setting_permutation_d,
-                      workload, device, scheduler):
+    def _write_header(self, output, workload, device, scheduler,
+                      template_order, template_spd,
+                      environment_order, environment_spd):
         """Writes the header of the output file.
 
         Args:
             output: The job output.
-            template_order: The ordered of setting permutations.
-            setting_permutation_d: The setting permutation in dict form.
             workload: The workload name.
             device: The device.
             scheduler: The scheduler.
+            template_order: The ordered of template setting permutations.
+            template_spd: The template setting permutation in dict form.
+            environment_order: The ordered of environment setting permutations.
+            environment_spd: The environment setting permutation in dict form.
         """
         output_base = os.path.basename(self.get_output_file())
         output_file = os.path.splitext(output_base)[0]
@@ -373,19 +423,27 @@ class FIOOutputConfiguration(OutputConfiguration):
                     f.write(t)
                     f.write(',')
 
+            if self.append_environment:
+                for t in environment_order:
+                    f.write(t)
+                    f.write(',')
+
             f.write('END\n')
 
-    def _write_line(self, output, template_order, setting_permutation_d,
-                    workload, device, scheduler):
+    def _write_line(self, output, workload, device, scheduler,
+                    template_order, template_spd,
+                    environment_order, environment_spd):
         """Writes a line of the output file.
 
         Args:
             output: The job output.
-            template_order: The ordered of setting permutations.
-            setting_permutation_d: The setting permutation in dict form.
             workload: The workload name.
             device: The device.
             scheduler: The scheduler.
+            template_order: The ordered of template setting permutations.
+            template_spd: The template setting permutation in dict form.
+            environment_order: The ordered of environment setting permutations.
+            environment_spd: The environment setting permutation in dict form.
         """
         output_base = os.path.basename(self.get_output_file())
         output_file = os.path.splitext(output_base)[0]
@@ -434,7 +492,12 @@ class FIOOutputConfiguration(OutputConfiguration):
 
             if self.append_template:
                 for t in template_order:
-                    f.write(str(setting_permutation_d[t]))
+                    f.write(str(template_spd[t]))
+                    f.write(',')
+
+            if self.append_environment:
+                for t in environment_order:
+                    f.write(str(environment_spd[t]))
                     f.write(',')
 
             f.write('END\n')

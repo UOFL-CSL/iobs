@@ -20,6 +20,7 @@ import os
 
 from iobs.config.base import Configuration
 from iobs.config.factory import (
+    get_environment_configuration_type,
     get_global_configuration_type,
     get_output_configuration_type,
     get_template_configuration_type,
@@ -60,16 +61,19 @@ def parse_config_file(input_file):
             'Invalid syntax in config file {}\n{}'.format(input_file, err)
         )
 
+    environment_header = get_constant('config_header_environment')
     global_header = get_constant('config_header_global')
     output_header = get_constant('config_header_output')
     template_header = get_constant('config_header_template')
 
     workload_type = get_workload_type(config_parser)
+    environment_configuration_type = get_environment_configuration_type(workload_type)
     global_configuration_type = get_global_configuration_type(workload_type)
     output_configuration_type = get_output_configuration_type(workload_type)
     template_configuration_type = get_template_configuration_type(workload_type)
     workload_configuration_type = get_workload_configuration_type(workload_type)
 
+    environment_configuration = environment_configuration_type()
     global_configuration = global_configuration_type()
     output_configuration = output_configuration_type(input_file)
     template_configuration = template_configuration_type()
@@ -78,11 +82,14 @@ def parse_config_file(input_file):
         workload_type,
         global_configuration,
         output_configuration,
-        template_configuration
+        template_configuration,
+        environment_configuration
     )
 
     for section in config_parser.sections():
-        if section == global_header:
+        if section == environment_header:
+            parse_section(config_parser, section, environment_configuration)
+        elif section == global_header:
             parse_section(config_parser, section, global_configuration)
         elif section == output_header:
             parse_section(config_parser, section, output_configuration)

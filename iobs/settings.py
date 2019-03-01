@@ -27,6 +27,7 @@ from iobs.errors import (
 
 
 _CONSTANTS = {
+    'config_header_environment': 'environment',
     'config_header_global': 'global',
     'config_header_output': 'output',
     'config_header_template': 'template',

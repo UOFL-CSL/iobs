@@ -58,13 +58,14 @@ class WorkloadConfiguration(ConfigSectionBase):
         setattr(self, setting, sa.conversion_fn(value))
 
     def process(self, output_configuration, global_configuration,
-                template_configuration):
+                template_configuration, environment_configuration):
         """Process the workload.
 
         Args:
             output_configuration: The OutputConfiguration.
             template_configuration: The TemplateConfiguration.
             global_configuration: The GlobalConfiguration.
+            environment_configuration: The EnvironmentConfiguration.
         """
         printf('Processing workload {}'.format(self._name),
                print_type=PrintType.INFO_LOG)
@@ -75,18 +76,26 @@ class WorkloadConfiguration(ConfigSectionBase):
         job_type = get_job_type(global_configuration.workload_type)
 
         for device, scheduler in itertools.product(devices, schedulers):
-            for file, sp in template_configuration.get_file_permutations(
+            for file, tsp in template_configuration.get_file_permutations(
                 self.file, device, scheduler
             ):
-                printf('Using template permutation {}'.format(sp),
+                printf('Using template permutation {}'.format(tsp),
                        print_type=PrintType.INFO_LOG)
 
-                self.process_with_repetitions(output_configuration, file, device,
-                                              scheduler, job_type, repetitions, sp)
+                for esp in environment_configuration.get_environment_permutations(
+                    device
+                ):
+                    printf('Using environment permutation {}'.format(esp),
+                           print_type=PrintType.INFO_LOG)
+
+                    self.process_with_repetitions(output_configuration, file,
+                                                  device, scheduler, job_type,
+                                                  repetitions, tsp, esp)
 
     def process_with_repetitions(self, output_configuration, file, device,
                                  scheduler, job_type, repetitions,
-                                 setting_permutation):
+                                 template_setting_permutation,
+                                 environment_setting_permutation):
         """Process the workload for the template permutation and repetitions.
 
         Args:
@@ -96,7 +105,8 @@ class WorkloadConfiguration(ConfigSectionBase):
             scheduler: The schedulers to execute with.
             job_type: The job type.
             repetitions: The number of repetitions.
-            setting_permutation: The template setting permutation.
+            template_setting_permutation: The template setting permutation.
+            environment_setting_permutation: The environment setting permutation.
         """
         for rep in range(repetitions):
             printf('Executing file {} with device {}, scheduler {}, repetition '
@@ -104,8 +114,9 @@ class WorkloadConfiguration(ConfigSectionBase):
                    print_type=PrintType.INFO_LOG)
 
             output = self._try_process(job_type, file, device, scheduler)
-            output_configuration.process(output, setting_permutation,
-                                         self._name, device, scheduler)
+            output_configuration.process(output, self._name, device, scheduler,
+                                         template_setting_permutation,
+                                         environment_setting_permutation)
 
     def _try_process(self, job_type, file, device, scheduler):
         """Attempts to process a job with retrying if failure.
