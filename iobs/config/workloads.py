@@ -160,7 +160,3 @@ class WorkloadConfiguration(ConfigSectionBase):
         return {
             'file': ConfigAttribute()
         }
-
-
-class FIOWorkloadConfiguration(WorkloadConfiguration):
-    pass

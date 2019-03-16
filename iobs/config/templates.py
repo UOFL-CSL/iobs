@@ -160,7 +160,3 @@ class TemplateConfiguration(ConfigSectionBase):
                 default_value=False
             )
         }
-
-
-class FIOTemplateConfiguration(TemplateConfiguration):
-    pass

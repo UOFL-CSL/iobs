@@ -15,18 +15,21 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
-from iobs.config.environments import FIOEnvironmentConfiguration
-from iobs.config.globals import FIOGlobalConfiguration
 from iobs.config.jobs import FIOJob
 from iobs.config.outputs import FIOOutputConfiguration
-from iobs.config.templates import FIOTemplateConfiguration
-from iobs.config.workloads import FIOWorkloadConfiguration
+from iobs.config.environments import EnvironmentConfiguration
+from iobs.config.globals import GlobalConfiguration
+from iobs.config.templates import TemplateConfiguration
+from iobs.config.workloads import WorkloadConfiguration
 from iobs.errors import UndefinedWorkloadTypeError
+from iobs.settings import get_constant
 
 
 def get_global_configuration_type(workload_type):
-    if workload_type == 'fio':
-        return FIOGlobalConfiguration
+    valid_workload_types = get_constant('valid_workload_types')
+
+    if workload_type in valid_workload_types:
+        return GlobalConfiguration
 
     raise UndefinedWorkloadTypeError(
         'workload_type {} is not defined'.format(workload_type)
@@ -43,8 +46,10 @@ def get_job_type(workload_type):
 
 
 def get_environment_configuration_type(workload_type):
-    if workload_type == 'fio':
-        return FIOEnvironmentConfiguration
+    valid_workload_types = get_constant('valid_workload_types')
+
+    if workload_type in valid_workload_types:
+        return EnvironmentConfiguration
 
     raise UndefinedWorkloadTypeError(
         'workload_type {} is not defined'.format(workload_type)
@@ -61,8 +66,10 @@ def get_output_configuration_type(workload_type):
 
 
 def get_template_configuration_type(workload_type):
-    if workload_type == 'fio':
-        return FIOTemplateConfiguration
+    valid_workload_types = get_constant('valid_workload_types')
+
+    if workload_type in valid_workload_types:
+        return TemplateConfiguration
 
     raise UndefinedWorkloadTypeError(
         'workload_type {} is not defined'.format(workload_type)
