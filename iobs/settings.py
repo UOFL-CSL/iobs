@@ -31,7 +31,7 @@ _CONSTANTS = {
     'config_header_global': 'global',
     'config_header_output': 'output',
     'config_header_template': 'template',
-    'valid_workload_types': {'fio'}
+    'valid_workload_types': {'filebench', 'fio'}
 }
 
 _FORMATTERS = {

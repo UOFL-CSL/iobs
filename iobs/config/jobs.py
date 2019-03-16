@@ -58,6 +58,137 @@ class Job(ABC):
         """Executes the job."""
 
 
+class FilebenchJob(Job):
+    """A Filebench Job."""
+    def get_command(self):
+        """Retrieves the command to execute.
+
+        Returns:
+            The command string.
+        """
+        return 'filebench -f {}'.format(self.file)
+
+    def collect_output(self, output):
+        """Collects the output metrics from the job execution.
+
+        Args:
+            output: The raw output.
+
+        Returns:
+            A dictionary mapping metric names to values.
+
+        Raises:
+            OutputParsingError: If unable to parse raw output.
+        """
+        try:
+            metrics = {}
+
+            flowop_section_found = False
+            for line in output.split('\n'):
+                if flowop_section_found:
+                    if 'IO Summary' in line:
+                        metrics.update(self._parse_summary(line))
+                        break
+
+                    metrics.update(self._parse_op(line))
+                elif 'Per-Operation Breakdown' in line:
+                    flowop_section_found = True
+                elif 'Run took' in line:
+                    metrics.update(self._parse_runtime(line))
+
+            return metrics
+        except (KeyError, IndexError) as err:
+            raise OutputParsingError(
+                'Unable to parse output\n{}'.format(err)
+            )
+
+    def _parse_runtime(self, line):
+        """Parse a runtime line from the raw output.
+
+        Args:
+            line: The line to parse.
+
+        Returns:
+            A dictionary mapping the metric names to their values.
+        """
+        return {
+            'runtime': line.split()[3]
+        }
+
+    def _parse_op(self, line):
+        """Parses a op line from the raw output.
+
+        Args:
+            line: The line to parse.
+
+        Returns:
+            A dictionary mapping the metric names to their values.
+        """
+        ls = line.split()
+        op_name = ls[0]
+        total_ops = ls[1][:-3]  # Remove ops
+        throughput_ops = ls[2][:-5]  # Remove ops/s
+        throughput_mb = ls[3][:-4]  # Remove mb/s
+        average_lat = ls[4][:-5]  # Remove ms/op
+        min_lat = ls[5][1:-2]  # Remove [ + ms
+        max_lat = ls[7][:-3]  # Remove ms]
+
+        return {
+            '{}-total-ops'.format(op_name): total_ops,  # ops
+            '{}-throughput-ops'.format(op_name): throughput_ops,  # op/s
+            '{}-throughput-mb'.format(op_name): throughput_mb,  # MB/s
+            '{}-average-lat'.format(op_name): average_lat,  # ms
+            '{}-min-lat'.format(op_name): min_lat,  # ms
+            '{}-max-lat'.format(op_name): max_lat  # ms
+        }
+
+    def _parse_summary(self, line):
+        """Parses the summary line from the raw output.
+
+        Args:
+            line: The line to parse.
+
+        Returns:
+            A dictionary mapping the metric names to their values.
+        """
+        ls = line.split()
+        total_ops = ls[3]
+        throughput_ops = ls[5]
+        read_throughput_ops, write_throughput_ops = ls[7].split('/')
+        throughput_mb = ls['8'][:-4]  # Remove mb/s
+        average_lat = ls['9'][:-5]  # Remove ms/op
+
+        return {
+            'total-ops': total_ops,  # ops
+            'throughput-ops': throughput_ops,  # op/s
+            'read-throughput-ops': read_throughput_ops,  # op/s
+            'write-throughput-ops': write_throughput_ops,  # op/s
+            'throughput-mb': throughput_mb,  # MB/s
+            'average-lat': average_lat  # ms
+        }
+
+    def execute(self):
+        """Executes the job.
+
+        Returns:
+            The collected output metrics.
+
+        Raises JobExecutionError: If job failed to run.
+        """
+        command = self.get_command()
+        out, rc = run_command(command)
+
+        if out is None or rc != 0:
+            raise JobExecutionError(
+                'Unable to run command {} for device {}'
+                .format(command, self.device)
+            )
+
+        printf('Job output:\n{}'.format(out), print_type=PrintType.DEBUG_LOG)
+
+        return self.collect_output(out)
+
+
 class FIOJob(Job):
     """An FIO Job."""
     def get_command(self):
