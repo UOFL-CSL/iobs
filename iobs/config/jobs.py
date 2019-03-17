@@ -155,8 +155,8 @@ class FilebenchJob(Job):
         total_ops = ls[3]
         throughput_ops = ls[5]
         read_throughput_ops, write_throughput_ops = ls[7].split('/')
-        throughput_mb = ls['8'][:-4]  # Remove mb/s
-        average_lat = ls['9'][:-5]  # Remove ms/op
+        throughput_mb = ls[9][:-4]  # Remove mb/s
+        average_lat = ls[10][:-5]  # Remove ms/op
 
         return {
             'total-ops': total_ops,  # ops
