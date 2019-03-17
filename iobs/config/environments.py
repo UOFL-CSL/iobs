@@ -64,8 +64,8 @@ class EnvironmentConfiguration(ConfigSectionBase):
             for sp in self._get_setting_permutations():
                 self.modify_environment(device, sp)
                 yield sp
-            else:
-                yield ()
+        else:
+            yield ()
 
     def modify_environment(self, device, setting_permutation):
         """Modifies the environment for the given permutated settings.
