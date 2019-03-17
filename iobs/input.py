@@ -22,6 +22,7 @@ from iobs.config.base import Configuration
 from iobs.config.factory import (
     get_environment_configuration_type,
     get_global_configuration_type,
+    get_job_type,
     get_output_configuration_type,
     get_template_configuration_type,
     get_workload_configuration_type
@@ -72,6 +73,7 @@ def parse_config_file(input_file):
     output_configuration_type = get_output_configuration_type(workload_type)
     template_configuration_type = get_template_configuration_type(workload_type)
     workload_configuration_type = get_workload_configuration_type(workload_type)
+    job_type = get_job_type(workload_type)
 
     environment_configuration = environment_configuration_type()
     global_configuration = global_configuration_type()
@@ -80,6 +82,7 @@ def parse_config_file(input_file):
     configuration = Configuration(
         input_file,
         workload_type,
+        job_type,
         global_configuration,
         output_configuration,
         template_configuration,
