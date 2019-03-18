@@ -194,11 +194,18 @@ class Configuration:
         NOTE: This should be called after `save_device_environments` has been
         called.
         """
+        printf('Restoring device information...',
+               print_type=PrintType.DEBUG_LOG)
+
         for device in self._global_configuration.devices:
             if device not in self._device_environments:
                 continue
 
             de = self._device_environments[device]
+
+            printf('Restoring device {} environment: {}'.format(device, de),
+                   print_type=PrintType.DEBUG_LOG)
+
             change_nomerges(device, de['nomerges'])
             change_scheduler(device, de['scheduler'])
 
@@ -207,11 +214,19 @@ class Configuration:
 
         NOTE: This should be called after `validate` has bee called.
         """
+        printf('Saving device information...',
+               print_type=PrintType.DEBUG_LOG)
+
         for device in self._global_configuration.devices:
             self._device_environments[device] = {
                 'nomerges': get_device_nomerges(device),
                 'scheduler': get_device_scheduler(device)
             }
+
+            de = self._device_environments[device]
+
+            printf('Saving device {} environment: {}'.format(device, de),
+                   print_type=PrintType.DEBUG_LOG)
 
     def validate(self):
         """Validates the configuration."""
