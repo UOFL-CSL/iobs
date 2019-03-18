@@ -199,8 +199,8 @@ class Configuration:
                 continue
 
             de = self._device_environments[device]
-            change_nomerges(device, de.nomerges)
-            change_scheduler(device, de.scheduler)
+            change_nomerges(device, de['nomerges'])
+            change_scheduler(device, de['scheduler'])
 
     def save_device_environments(self):
         """Saves device environment information so it can be restored.
