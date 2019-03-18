@@ -50,7 +50,8 @@ setup(
 
     entry_points={
         'iobs.registered_commands': [
-            'execute = iobs.commands.execute:main'
+            'execute = iobs.commands.execute:main',
+            'validate = iobs.commands.validate:main'
         ],
         'console_scripts': [
             'iobs = iobs.__main__:main'

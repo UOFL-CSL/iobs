@@ -30,10 +30,10 @@ The following steps are recommended in retrieving the package:
 Executing the script with the `-h` flag shows the different arguments that can be used:
 ```bash
 $ iobs -h
-usage: iobs [-h] [--version] {execute}
+usage: iobs [-h] [--version] {execute, validate}
 
 positional arguments:
-  {execute}
+  {execute, validate}
 
 optional arguments:
   -h, --help  show this help message and exit
@@ -69,6 +69,18 @@ optional arguments:
   -c, --continue-on-failure
                         If a input fails, continues executing other inputs;
                         otherwise exits the program.
+```
+
+### `iobs validate`
+
+Validates one or more `iobs` configuration files.
+
+```bash
+$ iobs validate -h
+usage: iobs validate [-h] input [input ...]
+
+positional arguments:
+  input                 The configuration files to validate.
 ```
 
 ## Configuration Files
