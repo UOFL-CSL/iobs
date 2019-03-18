@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Output option "append_environment". Appends environment settings to output.
 - Filebench workload type added.
 - Validation argument (i.e. `iobs validation`) to validate files without execution.
+- `-d` `--reset-device` argument added. Resets device to prior execution state
+after execution.
 
 ### Fixed
 - Template settings should appear in output if specified in format.

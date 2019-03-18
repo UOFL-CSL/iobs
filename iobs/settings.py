@@ -49,6 +49,7 @@ class SettingsManager:
     continue_on_failure = False
     log_enabled = False
     output_directory = os.getcwd()
+    reset_device = False
     retry_count = 1
     silent = False
 

@@ -19,6 +19,12 @@ from abc import ABC, abstractmethod
 
 from iobs.errors import InvalidSettingError
 from iobs.output import printf, PrintType
+from iobs.process import (
+    change_nomerges,
+    change_scheduler,
+    get_device_nomerges,
+    get_device_scheduler
+)
 
 
 class ConfigAttribute:
@@ -158,6 +164,7 @@ class Configuration:
         self._template_configuration = template_configuration
         self._environment_configuration = environment_configuration
         self._workload_configurations = []
+        self._device_environments = {}
 
     def add_workload_configuration(self, workload_configuration):
         """Adds a WorkloadConfiguration to process.
@@ -180,6 +187,46 @@ class Configuration:
                 self._template_configuration,
                 self._environment_configuration
             )
+
+    def restore_device_environments(self):
+        """Restores device environments.
+
+        NOTE: This should be called after `save_device_environments` has been
+        called.
+        """
+        printf('Restoring device information...',
+               print_type=PrintType.DEBUG_LOG)
+
+        for device in self._global_configuration.devices:
+            if device not in self._device_environments:
+                continue
+
+            de = self._device_environments[device]
+
+            printf('Restoring device {} environment: {}'.format(device, de),
+                   print_type=PrintType.DEBUG_LOG)
+
+            change_nomerges(device, de['nomerges'])
+            change_scheduler(device, de['scheduler'])
+
+    def save_device_environments(self):
+        """Saves device environment information so it can be restored.
+
+        NOTE: This should be called after `validate` has bee called.
+        """
+        printf('Saving device information...',
+               print_type=PrintType.DEBUG_LOG)
+
+        for device in self._global_configuration.devices:
+            self._device_environments[device] = {
+                'nomerges': get_device_nomerges(device),
+                'scheduler': get_device_scheduler(device)
+            }
+
+            de = self._device_environments[device]
+
+            printf('Saving device {} environment: {}'.format(device, de),
+                   print_type=PrintType.DEBUG_LOG)
 
     def validate(self):
         """Validates the configuration."""

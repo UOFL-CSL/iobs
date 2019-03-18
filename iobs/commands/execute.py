@@ -48,9 +48,10 @@ def check_args(args):
     else:
         SettingsManager.set('log_enabled', False)
 
-    SettingsManager.set('silent', args.silent)
-    SettingsManager.set('retry_count', args.retry_count)
     SettingsManager.set('continue_on_failure', args.continue_on_failure)
+    SettingsManager.set('reset_device', args.reset_device)
+    SettingsManager.set('retry_count', args.retry_count)
+    SettingsManager.set('silent', args.silent)
 
 
 def get_log_level(log_level):
@@ -118,6 +119,10 @@ def execute(args):
 
             configuration = parse_config_file(input_file)
             configuration.validate()
+
+            if args.reset_device:
+                configuration.save_device_environments()
+
             configuration.process()
         except IOBSBaseException as err:
             if not SettingsManager.get('continue_on_failure'):
@@ -126,6 +131,9 @@ def execute(args):
             printf('input file {} failed all retries. Continuing execution '
                    'of remaining files...\n{}'.format(input_file, err),
                    print_type=PrintType.ERROR | PrintType.ERROR_LOG)
+        finally:
+            if args.reset_device:
+                configuration.restore_device_environments()
 
     printf('Finishing program execution...',
            print_type=PrintType.NORMAL | PrintType.INFO_LOG)
@@ -182,6 +190,14 @@ def main(args):
         action='store_true',
         help='If a input fails, continues executing other inputs; otherwise '
              'exits the program.'
+    )
+    parser.add_argument(
+        '-d', '--reset-device',
+        dest='reset_device',
+        default=False,
+        action='store_true',
+        help='Resets the device to original settings after execution of each '
+             'input.'
     )
 
     args = parser.parse_args(args)

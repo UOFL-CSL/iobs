@@ -47,7 +47,7 @@ Executes one or more `iobs` configuration files.
 ```bash
 $ iobs execute -h
 usage: iobs execute [-h] [-o OUTPUT_DIRECTORY] [-l LOG_FILE]
-                    [--log-level {1,2,3}] [-s] [-r RETRY_COUNT] [-c]
+                    [--log-level {1,2,3}] [-s] [-r RETRY_COUNT] [-c] [-d]
                     input [input ...]
 
 positional arguments:
@@ -69,6 +69,8 @@ optional arguments:
   -c, --continue-on-failure
                         If a input fails, continues executing other inputs;
                         otherwise exits the program.
+  -d, --reset-device    Resets the device to original settings after
+                        execution of each input.
 ```
 
 ### `iobs validate`
