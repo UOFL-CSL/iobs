@@ -77,7 +77,3 @@ class GlobalConfiguration(ConfigSectionBase):
                 default_value=1
             )
         }
-
-
-class FIOGlobalConfiguration(GlobalConfiguration):
-    pass

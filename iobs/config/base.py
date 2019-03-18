@@ -147,11 +147,12 @@ class Configuration:
         output_configuration: The OutputConfiguration.
         template_configuration: The TemplateConfiguration.
     """
-    def __init__(self, input_file, workload_type, global_configuration,
-                 output_configuration, template_configuration,
-                 environment_configuration):
-        self._workload_type = workload_type
+    def __init__(self, input_file, workload_type, job_type,
+                 global_configuration, output_configuration,
+                 template_configuration, environment_configuration):
         self._input_file = input_file
+        self._workload_type = workload_type
+        self._job_type = job_type
         self._global_configuration = global_configuration
         self._output_configuration = output_configuration
         self._template_configuration = template_configuration
@@ -173,6 +174,7 @@ class Configuration:
 
         for wc in self._workload_configurations:
             wc.process(
+                self._job_type,
                 self._output_configuration,
                 self._global_configuration,
                 self._template_configuration,

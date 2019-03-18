@@ -27,10 +27,6 @@ from iobs.errors import (
 from iobs.process import (
     change_nomerges
 )
-from iobs.settings import (
-    get_formatter,
-    match_regex
-)
 from iobs.util import (
     cast_bool,
     try_split
@@ -68,8 +64,8 @@ class EnvironmentConfiguration(ConfigSectionBase):
             for sp in self._get_setting_permutations():
                 self.modify_environment(device, sp)
                 yield sp
-            else:
-                yield ()
+        else:
+            yield ()
 
     def modify_environment(self, device, setting_permutation):
         """Modifies the environment for the given permutated settings.
@@ -128,7 +124,3 @@ class EnvironmentConfiguration(ConfigSectionBase):
                 default_value=[0]
             )
         }
-
-
-class FIOEnvironmentConfiguration(EnvironmentConfiguration):
-    pass

@@ -20,14 +20,14 @@ import logging
 import os
 import platform
 
-from iobs.config import parse_config_file
 from iobs.errors import (
     InvalidOSError,
     InvalidPrivilegesError,
     IOBSBaseException
 )
-from iobs.settings import SettingsManager
+from iobs.input import parse_config_file
 from iobs.output import printf, PrintType
+from iobs.settings import SettingsManager
 
 
 def check_args(args):

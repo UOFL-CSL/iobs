@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Environment option "enabled". Enables environment configuration.
 - Environment option "nomerges". Allows specifying "nomerges=0,1,2" for devices.
 - Output option "append_environment". Appends environment settings to output.
+- Filebench workload type added.
 
 ### Fixed
 - Template settings should appear in output if specified in format.

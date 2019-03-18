@@ -26,7 +26,6 @@ from iobs.errors import (
     JobExecutionError,
     RetryCountExceededError
 )
-from iobs.config.factory import get_job_type
 from iobs.output import printf, PrintType
 from iobs.settings import SettingsManager
 
@@ -57,11 +56,12 @@ class WorkloadConfiguration(ConfigSectionBase):
         sa = self._settings[setting]
         setattr(self, setting, sa.conversion_fn(value))
 
-    def process(self, output_configuration, global_configuration,
+    def process(self, job_type, output_configuration, global_configuration,
                 template_configuration, environment_configuration):
         """Process the workload.
 
         Args:
+            job_type: The Job.
             output_configuration: The OutputConfiguration.
             template_configuration: The TemplateConfiguration.
             global_configuration: The GlobalConfiguration.
@@ -73,7 +73,6 @@ class WorkloadConfiguration(ConfigSectionBase):
         devices = global_configuration.devices
         schedulers = global_configuration.schedulers
         repetitions = global_configuration.repetitions
-        job_type = get_job_type(global_configuration.workload_type)
 
         for device, scheduler in itertools.product(devices, schedulers):
             for file, tsp in template_configuration.get_file_permutations(
@@ -160,7 +159,3 @@ class WorkloadConfiguration(ConfigSectionBase):
         return {
             'file': ConfigAttribute()
         }
-
-
-class FIOWorkloadConfiguration(WorkloadConfiguration):
-    pass
