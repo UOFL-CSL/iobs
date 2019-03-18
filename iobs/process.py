@@ -279,6 +279,60 @@ def get_device_major_minor(device):
 
     return out
 
+def get_device_nomerges(device):
+    """Returns the current nomerges for the device.
+
+    Args:
+        device: The device.
+
+    Returns:
+        The current nomerges setting.
+    """
+    printf('Retrieving nomerges for device {}'.format(device),
+           print_type=PrintType.DEBUG_LOG)
+
+    device_name = match_regex(device, 'device_name')
+
+    out, rc = run_command('cat /sys/block/{}/queue/nomerges'.format(device_name))
+
+    if rc != 0:
+        printf('Unable to find nomerges for device',
+               print_type=PrintType.ERROR_LOG)
+        return []
+
+    return int(out)
+
+
+def get_device_scheduler(device):
+    """Returns the current scheduler for the device.
+
+    Args:
+        device: The device.
+
+    Returns:
+        The current scheduler.
+    """
+    printf('Retrieving schedulers for device {}'.format(device),
+           print_type=PrintType.DEBUG_LOG)
+
+    device_name = match_regex(device, 'device_name')
+
+    out, rc = run_command('cat /sys/block/{}/queue/scheduler'.format(device_name))
+
+    if rc != 0:
+        printf('Unable to find schedulers for device',
+               print_type=PrintType.ERROR_LOG)
+        return []
+
+    l, r = out.index('['), out.index(']')
+    ret = out[l+1:r]
+
+    printf('Found the current scheduler for device {}: '
+           '{}'.format(device, ret),
+           print_type=PrintType.DEBUG_LOG)
+
+    return ret
+
 
 def get_schedulers_for_device(device):
     """Returns a list of available schedulers for a given device.
