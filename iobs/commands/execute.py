@@ -133,7 +133,7 @@ def execute(args):
                    print_type=PrintType.ERROR | PrintType.ERROR_LOG)
         finally:
             if args.reset_device:
-                configuration.reset_device_environments()
+                configuration.restore_device_environments()
 
     printf('Finishing program execution...',
            print_type=PrintType.NORMAL | PrintType.INFO_LOG)

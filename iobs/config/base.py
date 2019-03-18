@@ -195,7 +195,7 @@ class Configuration:
         called.
         """
         for device in self._global_configuration.devices:
-            if device not in de:
+            if device not in self._device_environments:
                 continue
 
             de = self._device_environments[device]
