@@ -19,7 +19,7 @@ __title__ = 'iobs'
 __summary__ = 'Linux I/O Benchmark for Schedulers'
 __url__ = 'https://github.com/uofl-csl/iobs'
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 __author__ = 'Jared Gillespie'
 __email__ = 'jared.gillespie@louisville.edu'
