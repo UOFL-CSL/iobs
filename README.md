@@ -1,16 +1,16 @@
 # Linux I/O Benchmark for Schedulers (iobs)
 
 An I/O workload automation and metric analysis tool used to gauge the performance of a device. It provides a means of 
-automating commonly run workloads with tools such as `fio`.
+automating commonly run workloads with tools such as `fio` and `filebench`.
 
 ## Why Should I Use This?
 
 The goal of `iobs` is to decrease the amount of manual work involved in running I/O experiments on devices. 
 
-Commonly used tools for running workloads, such as `fio` are well suited for providing a means of benchmarking a device.
-However, when utilizing other tools or running multiple workloads with slight variations, the number of configuration 
-changes and formatting differences between tools makes for an inefficient amount of manual work required to consolidate
-the results.
+Commonly used tools for running workloads, such as `fio` and `filebench` are well suited for providing a means of 
+benchmarking a device. However, when utilizing other tools or running multiple workloads with slight variations, the 
+number of configuration  changes and formatting differences between tools makes for an inefficient amount of manual work
+required to consolidate the results.
 
 The biggest advantage of `iobs` is the reduction in work required to run many experiments with different combinations
 of configurations.
@@ -121,7 +121,38 @@ The following `format` metric names are used by any `workload_type`:
  * `workload` (or `w`) - The name of the workload.
  * `device` (or `d`) - The name of the device.
  * `scheduler` (or `s`) - The name of the scheduler.
+
+**`filebench`**
+ * `include_flowops` (optional) - Whether to include flowops metrics. Defaults to False.
+   * **ex:** `include_lat_percentiles=1`
+   * *NOTE: Each of the flowop metrics are added with the format of `flowopname-identifier` where identifier is one of 
+     the following: `total-ops`, `throughput-ops`, `throughput-mb`, `average-lat`, `min-lat`, `max-lat`.*
  
+The following `format` metric names are used by the `filebench` `workload_type`:
+ * `runtime` (or `run`) - The total runtime for the job in seconds.
+ * `total-ops` (or `ops`) - The total number of operations performance.
+ * `throughput-ops` (or `top`) - The average throughput in ops/s.
+ * `read-throughput-ops` (or `rto`) - The average read throughput in ops/s.
+ * `write-throughput-ops` (or `wto`) - The average write throughput in ops/s.
+ * `throughput-mb` (or `tmb`) - The average throughput in MB/s.
+ * `average-lat` (or `avl`) - The average latency in ms.
+ * `flowops` - The flowops metrics.
+   * *NOTE: If `include_flowops=1` is not set, this is ignored. The number of columns depends
+   on the number of flowops by `filebench`.*
+            
+The default `format` used if none is given is the following:
+ * `workload`
+ * `device`
+ * `scheduler`
+ * `runtime`
+ * `total-ops`
+ * `throughput-ops`
+ * `read-throughput-ops`
+ * `write-throughput-ops`
+ * `throughput-mb`
+ * `average-lat`
+ * `flowops`
+
 **`fio`**
  * `include_lat_percentiles` (optional) - Whether to include lat percentile metrics. Defaults to False.
    * **ex:** `include_lat_percentiles=1`
@@ -265,7 +296,7 @@ the workload.
    * **ex:** `file=my-job.fio`
 
 The file will be executed with the appropriate command given the `workload_type`. For example, `workload_type=fio` would
-run `fio <file> --output-format=json`.
+run `fio <file> --output-format=json`. While `workload_type=filebench` would run `filebench -f <file>`.
 
 ## Examples
 
