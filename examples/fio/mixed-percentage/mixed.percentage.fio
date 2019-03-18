@@ -1,0 +1,16 @@
+[global]
+name=mixed-percentage
+bs=4K
+direct=1
+ramp_time=3
+group_reporting=1
+percentile_list=70:75:80:85:90:91:92:93:94:95:96:97:98:99:99.9:99.99:99.999
+
+[job]
+size=30G
+ioengine=libaio
+iodepth=16
+filename=/mnt/<%device_name%>/mixed.percentage.file
+rw=randrw
+numjobs=1
+rwmixwrite=<%rwmixwrite%>
