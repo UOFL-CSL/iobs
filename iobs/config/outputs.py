@@ -142,6 +142,7 @@ class OutputConfiguration(ConfigSectionBase):
             'device': device,
             'scheduler': scheduler
         }
+
         if not self._wrote_header:
             self.header_order = self._write_header(
                 output, universal_metrics, template_order,
@@ -200,6 +201,9 @@ class OutputConfiguration(ConfigSectionBase):
             'append_environment': ConfigAttribute(
                 conversion_fn=cast_bool,
                 default_value=True
+            'ignore_missing': ConfigAttribute(
+                conversion_fn=cast_bool,
+                default_value=False
             )
         }
 
@@ -327,6 +331,9 @@ class FilebenchOutputConfiguration(OutputConfiguration):
                     header_order.append(fi)
                     f.write(fi)
                     f.write(',')
+                elif self.ignore_missing:
+                    f.write(fi)
+                    f.write(',')
                 else:
                     raise OutputFormatError(
                         'Output format is invalid, unable to parse {}'.format(fi)
@@ -376,6 +383,9 @@ class FilebenchOutputConfiguration(OutputConfiguration):
                     f.write(',')
                 elif fi in environment_spd:
                     f.write(str(environment_spd[fi]))
+                    f.write(',')
+                elif self.ignore_missing:
+                    f.write('NONE')
                     f.write(',')
                 else:
                     raise OutputFormatError('Unable to write metric {}'.format(fi))
@@ -588,6 +598,9 @@ class FIOOutputConfiguration(OutputConfiguration):
                     header_order.append(fi)
                     f.write(fi)
                     f.write(',')
+                elif self.ignore_missing:
+                    f.write(fi)
+                    f.write(',')
                 else:
                     raise OutputFormatError(
                         'Output format is invalid, unable to parse {}'.format(fi)
@@ -637,6 +650,9 @@ class FIOOutputConfiguration(OutputConfiguration):
                     f.write(',')
                 elif fi in environment_spd:
                     f.write(str(environment_spd[fi]))
+                    f.write(',')
+                elif self.ignore_missing:
+                    f.write('NONE')
                     f.write(',')
                 else:
                     raise OutputFormatError('Unable to write metric {}'.format(fi))
