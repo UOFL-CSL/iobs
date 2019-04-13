@@ -124,6 +124,14 @@ file will always be `END`.
    * **ex:** `append_environment=1`
    * *NOTE: This should be set to `False` if a custom format is given which includes `environment` information. Otherwise
             duplicate columns will be added to the output.*
+ * `append_blktrace` (optional) - Whether to append the `blktrace` metrics. Defaults to True.
+   * **ex:** `append_blktrace=1`
+   * *NOTE: This will do nothing if `enable_blktrace` isn't set in the `workload`. This should be set to `False` if a 
+            custom format is given which includes `blktrace` information. Otherwise duplicate columns will be added to 
+            the output.*
+ * `ignore_missing` (optional) - Whether to ignore missing metrics. Defaults to False.
+   * **ex:** `ignore_missing=1`
+   * *NOTE: Missing metrics will use "NONE" as their value.*
 
 The `format` accepts a list of metric names which should be retrieved from the workload and written in the output files.
 Each metric name can accept the full name or an abbreviated name (if there is one). Also, when using the `template` 
@@ -136,6 +144,16 @@ The following `format` metric names are used by any `workload_type`:
  * `device` (or `d`) - The name of the device.
  * `scheduler` (or `s`) - The name of the scheduler.
 
+The following `format` metric names are used if `enable_blktrace` is set in the `workload` section:
+ * `d2c-avg` - The average d2c.
+ * `d2c-min` - The minimum d2c.
+ * `d2c-max` - The maximum d2c.
+ * `d2c-n` - The number of IOs used in d2c.
+ * `q2c-avg` - The average q2c.
+ * `q2c-min` - The minimum q2c.
+ * `q2c-max` - The maximum q2c.
+ * `q2c-n` - The number of IOs used in q2c.
+ 
 **`filebench`**
  * `include_flowops` (optional) - Whether to include flowops metrics. Defaults to False.
    * **ex:** `include_lat_percentiles=1`
@@ -308,6 +326,8 @@ the workload.
 
  * `file` (required) - The file to execute.
    * **ex:** `file=my-job.fio`
+ * `enable_blktrace` (optional) - Executes blktrace alongside workload and gathers relevant metrics. Defaults to False.
+   * **ex:** `enable_blktrace=1`
 
 The file will be executed with the appropriate command given the `workload_type`. For example, `workload_type=fio` would
 run `fio <file> --output-format=json`. While `workload_type=filebench` would run `filebench -f <file>`.

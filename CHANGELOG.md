@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Job option "enable_blktrace". Runs blktrace and grabs relevant metrics.
+- Output option "append_blktrace". Appends blktrace metrics to output.
+- Output option "ignore_missing". If missing metric, "NONE" is used as value in output.
+
+### Fixed
+- Fixed output parsing exception being handled properly.
 
 ## [1.1.0] - 2019-03-18
 ### Added
