@@ -27,6 +27,7 @@ from iobs.errors import (
     OutputParsingError,
     RetryCountExceededError
 )
+from iobs.util import cast_bool
 from iobs.output import printf, PrintType
 from iobs.settings import SettingsManager
 
@@ -116,7 +117,8 @@ class WorkloadConfiguration(ConfigSectionBase):
             output = self._try_process(job_type, file, device, scheduler)
             output_configuration.process(output, self._name, device, scheduler,
                                          template_setting_permutation,
-                                         environment_setting_permutation)
+                                         environment_setting_permutation,
+                                         self.enable_blktrace)
 
     def _try_process(self, job_type, file, device, scheduler):
         """Attempts to process a job with retrying if failure.
@@ -142,8 +144,7 @@ class WorkloadConfiguration(ConfigSectionBase):
             job = job_type(file, device, scheduler)
 
             try:
-                return job.process()
-            except JobExecutionError as err:
+                return job.process(self.enable_blktrace)
             except (JobExecutionError, OutputParsingError) as err:
                 printf('Unable to run job \n{}'.format(err),
                        print_type=PrintType.ERROR_LOG)
@@ -159,5 +160,9 @@ class WorkloadConfiguration(ConfigSectionBase):
             A dictionary mapping of setting names to ConfigAttributes.
         """
         return {
-            'file': ConfigAttribute()
+            'file': ConfigAttribute(),
+            'enable_blktrace': ConfigAttribute(
+                conversion_fn=cast_bool,
+                default_value=False
+            )
         }

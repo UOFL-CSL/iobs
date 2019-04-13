@@ -35,11 +35,21 @@ _CONSTANTS = {
 }
 
 _FORMATTERS = {
+    'blktrace': 'blktrace -d {} -o {} -b 16384 -n 8',  # device, device_name
+    'blkparse': 'blkparse -i {0} -d {0}.blkparse.bin -q -O -M',  # device_name
+    'btt': 'btt -i {}.blkparse.bin',  # device_name
     'template': '<%{}%>'
 }
 
-
 _REGEX = {
+    'btt_d2c_avg': re.compile(r'D2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
+    'btt_d2c_max': re.compile(r'D2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+)'),
+    'btt_d2c_min': re.compile(r'D2C\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
+    'btt_d2c_n': re.compile(r'D2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+)'),
+    'btt_q2c_avg': re.compile(r'Q2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
+    'btt_q2c_max': re.compile(r'Q2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+)'),
+    'btt_q2c_min': re.compile(r'Q2C\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
+    'btt_q2c_n': re.compile(r'Q2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+)'),
     'device_name': re.compile(r'/dev/(.*)')
 }
 
