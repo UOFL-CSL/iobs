@@ -24,6 +24,7 @@ from iobs.config.base import (
 from iobs.errors import (
     InvalidSettingError,
     JobExecutionError,
+    OutputParsingError,
     RetryCountExceededError
 )
 from iobs.output import printf, PrintType
@@ -143,6 +144,7 @@ class WorkloadConfiguration(ConfigSectionBase):
             try:
                 return job.process()
             except JobExecutionError as err:
+            except (JobExecutionError, OutputParsingError) as err:
                 printf('Unable to run job \n{}'.format(err),
                        print_type=PrintType.ERROR_LOG)
 
