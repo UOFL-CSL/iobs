@@ -327,6 +327,7 @@ class FilebenchOutputConfiguration(OutputConfiguration):
         ft = self._get_format_translation()
         ut = self._get_universal_format_translation()
         fo = self._get_flowops_order(output)
+        bt = set(self._get_blktrace_order())
 
         with open(output_file, 'w+') as f:
             for fi in self.format:
@@ -355,7 +356,12 @@ class FilebenchOutputConfiguration(OutputConfiguration):
                     header_order.append(fi)
                     f.write(fi)
                     f.write(',')
+                elif fi in bt:
+                    header_order.append(fi)
+                    f.write(fi)
+                    f.write(',')
                 elif self.ignore_missing:
+                    header_order.append(fi)
                     f.write(fi)
                     f.write(',')
                 else:
@@ -597,6 +603,7 @@ class FIOOutputConfiguration(OutputConfiguration):
         lpt = self._get_lat_percentile_format_translation()
         cpt = self._get_clat_percentile_format_translation()
         po = self._get_percentile_order(output)
+        bt = set(self._get_blktrace_order())
 
         with open(output_file, 'w+') as f:
             for fi in self.format:
@@ -630,7 +637,12 @@ class FIOOutputConfiguration(OutputConfiguration):
                     header_order.append(fi)
                     f.write(fi)
                     f.write(',')
+                elif fi in bt:
+                    header_order.append(fi)
+                    f.write(fi)
+                    f.write(',')
                 elif self.ignore_missing:
+                    header_order.append(fi)
                     f.write(fi)
                     f.write(',')
                 else:
