@@ -46,7 +46,7 @@ class ProcessManager:
             command: The command being run in the process.
             process: The process.
         """
-        ProcessManager.PROCESSES += CommandProcess(command, process)
+        ProcessManager.PROCESSES.append(CommandProcess(command, process))
 
     @staticmethod
     def clear_finished_processes():
