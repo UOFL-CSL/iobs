@@ -27,7 +27,6 @@ from iobs.errors import (
     OutputParsingError,
     RetryCountExceededError
 )
-from iobs.util import cast_bool
 from iobs.output import printf, PrintType
 from iobs.settings import SettingsManager
 
@@ -75,6 +74,7 @@ class WorkloadConfiguration(ConfigSectionBase):
         devices = global_configuration.devices
         schedulers = global_configuration.schedulers
         repetitions = global_configuration.repetitions
+        enable_blktrace = global_configuration.enable_blktrace
 
         for device, scheduler in itertools.product(devices, schedulers):
             for file, tsp in template_configuration.get_file_permutations(
@@ -91,12 +91,14 @@ class WorkloadConfiguration(ConfigSectionBase):
 
                     self.process_with_repetitions(output_configuration, file,
                                                   device, scheduler, job_type,
-                                                  repetitions, tsp, esp)
+                                                  repetitions, tsp, esp,
+                                                  enable_blktrace)
 
     def process_with_repetitions(self, output_configuration, file, device,
                                  scheduler, job_type, repetitions,
                                  template_setting_permutation,
-                                 environment_setting_permutation):
+                                 environment_setting_permutation,
+                                 enable_blktrace):
         """Process the workload for the template permutation and repetitions.
 
         Args:
@@ -108,19 +110,21 @@ class WorkloadConfiguration(ConfigSectionBase):
             repetitions: The number of repetitions.
             template_setting_permutation: The template setting permutation.
             environment_setting_permutation: The environment setting permutation.
+            enable_blktrace: Whether blktrace is enabled.
         """
         for rep in range(repetitions):
             printf('Executing file {} with device {}, scheduler {}, repetition '
                    '{} of {}'.format(file, device, scheduler, rep + 1, repetitions),
                    print_type=PrintType.INFO_LOG)
 
-            output = self._try_process(job_type, file, device, scheduler)
+            output = self._try_process(job_type, file, device, scheduler,
+                                       enable_blktrace)
             output_configuration.process(output, self._name, device, scheduler,
                                          template_setting_permutation,
                                          environment_setting_permutation,
-                                         self.enable_blktrace)
+                                         enable_blktrace)
 
-    def _try_process(self, job_type, file, device, scheduler):
+    def _try_process(self, job_type, file, device, scheduler, enable_blktrace):
         """Attempts to process a job with retrying if failure.
 
         Args:
@@ -128,6 +132,7 @@ class WorkloadConfiguration(ConfigSectionBase):
             file: The input file.
             device: The device to execute on.
             scheduler: The scheduler to execute with.
+            enable_blkrace: Whether blktrace is enabled.
 
         Returns:
             The output of processing the job.
@@ -144,7 +149,7 @@ class WorkloadConfiguration(ConfigSectionBase):
             job = job_type(file, device, scheduler)
 
             try:
-                return job.process(self.enable_blktrace)
+                return job.process(enable_blktrace)
             except (JobExecutionError, OutputParsingError) as err:
                 printf('Unable to run job \n{}'.format(err),
                        print_type=PrintType.ERROR_LOG)
@@ -160,9 +165,5 @@ class WorkloadConfiguration(ConfigSectionBase):
             A dictionary mapping of setting names to ConfigAttributes.
         """
         return {
-            'file': ConfigAttribute(),
-            'enable_blktrace': ConfigAttribute(
-                conversion_fn=cast_bool,
-                default_value=False
-            )
+            'file': ConfigAttribute()
         }

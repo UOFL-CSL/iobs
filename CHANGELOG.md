@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- Job option "enable_blktrace". Runs blktrace and grabs relevant metrics.
+- Global option "enable_blktrace". Runs blktrace and grabs relevant metrics.
 - Output option "append_blktrace". Appends blktrace metrics to output.
 - Output option "ignore_missing". If missing metric, "NONE" is used as value in output.
 

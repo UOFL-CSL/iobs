@@ -108,6 +108,8 @@ Global settings for each of the workloads.
    * *NOTE: Should be available for each device specified.*
  * `repetitions` (optional) - The number of times to repeat the workloads. Defaults to 1.
    * **ex:**: `repetitions=5`
+  * `enable_blktrace` (optional) - Executes blktrace alongside workload and gathers relevant metrics. Defaults to False.
+   * **ex:** `enable_blktrace=1`
 
 ### `output`
 
@@ -126,9 +128,9 @@ file will always be `END`.
             duplicate columns will be added to the output.*
  * `append_blktrace` (optional) - Whether to append the `blktrace` metrics. Defaults to True.
    * **ex:** `append_blktrace=1`
-   * *NOTE: This will do nothing if `enable_blktrace` isn't set in the `workload`. This should be set to `False` if a 
-            custom format is given which includes `blktrace` information. Otherwise duplicate columns will be added to 
-            the output.*
+   * *NOTE: This will do nothing if `enable_blktrace` isn't set in the `global` section. This should be set to `False`  
+            if a custom format is given which includes `blktrace` information. Otherwise duplicate columns will be added 
+            to the output.*
  * `ignore_missing` (optional) - Whether to ignore missing metrics. Defaults to False.
    * **ex:** `ignore_missing=1`
    * *NOTE: Missing metrics will use "NONE" as their value.*
@@ -144,7 +146,7 @@ The following `format` metric names are used by any `workload_type`:
  * `device` (or `d`) - The name of the device.
  * `scheduler` (or `s`) - The name of the scheduler.
 
-The following `format` metric names are used if `enable_blktrace` is set in the `workload` section:
+The following `format` metric names are used if `enable_blktrace` is set in the `global` section:
  * `d2c-avg` - The average d2c.
  * `d2c-min` - The minimum d2c.
  * `d2c-max` - The maximum d2c.
@@ -326,8 +328,6 @@ the workload.
 
  * `file` (required) - The file to execute.
    * **ex:** `file=my-job.fio`
- * `enable_blktrace` (optional) - Executes blktrace alongside workload and gathers relevant metrics. Defaults to False.
-   * **ex:** `enable_blktrace=1`
 
 The file will be executed with the appropriate command given the `workload_type`. For example, `workload_type=fio` would
 run `fio <file> --output-format=json`. While `workload_type=filebench` would run `filebench -f <file>`.
