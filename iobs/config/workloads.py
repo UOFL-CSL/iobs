@@ -154,15 +154,17 @@ class WorkloadConfiguration(ConfigSectionBase):
             job = job_type(file, device, scheduler)
 
             try:
-                return job.process(enable_blktrace)
+                ret = job.process(enable_blktrace)
+
+                if SettingsManager.get('cleanup_files'):
+                    device_name = match_regex(device, 'device_name')
+                    files = get_formatter('cleanup_blktrace').format(device_name)
+                    cleanup_files(files)
+
+                return ret
             except (JobExecutionError, OutputParsingError) as err:
                 printf('Unable to run job \n{}'.format(err),
                        print_type=PrintType.ERROR_LOG)
-
-        if SettingsManager.get('cleanup_files'):
-            device_name = match_regex(device, 'device_name')
-            files = get_formatter('cleanup_blktrace').format(device_name)
-            cleanup_files(files)
 
         raise RetryCountExceededError(
             'Unable to run job, exceeded retry counts'
