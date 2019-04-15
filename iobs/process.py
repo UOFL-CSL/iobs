@@ -256,6 +256,9 @@ def cleanup_files(files):
     """
     printf('Cleaning up files', print_type=PrintType.DEBUG_LOG)
 
+    if isinstance(files, str):
+        files = files.split(' ')
+
     for file in files:
         printf('Removing files %s' % file, print_type=PrintType.DEBUG_LOG)
         if run_system_command('rm -f {}'.format(file)) != 0:
