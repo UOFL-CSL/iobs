@@ -154,16 +154,17 @@ class Job(ABC):
             OutputParsingError: If unable to parse raw output.
         """
         try:
-            return {
-                'd2c_avg': match_regex(output, 'btt_d2c_avg'),
-                'd2c_max': match_regex(output, 'btt_d2c_max'),
-                'd2c_min': match_regex(output, 'btt_d2c_min'),
-                'd2c_n': match_regex(output, 'btt_d2c_n'),
-                'q2c_avg': match_regex(output, 'btt_q2c_avg'),
-                'q2c_max': match_regex(output, 'btt_q2c_max'),
-                'q2c_min': match_regex(output, 'btt_q2c_min'),
-                'q2c_n': match_regex(output, 'btt_q2c_n')
-            }
+            ret = {}
+            for line in output.split('\n'):
+                if line[:3] in ('D2C', 'Q2C'):
+                    t = line[:3].lower()
+                    ls = line.split()
+                    ret['{}_min'.format(t)] = ls[1]
+                    ret['{}_avg'.format(t)] = ls[2]
+                    ret['{}_max'.format(t)] = ls[3]
+                    ret['{}_n'.format(t)] = ls[4]
+
+            return ret
         except (KeyError, IndexError) as err:
             raise OutputParsingError(
                 'Unable to parse output\n{}'.format(err)

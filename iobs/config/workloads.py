@@ -137,7 +137,7 @@ class WorkloadConfiguration(ConfigSectionBase):
             file: The input file.
             device: The device to execute on.
             scheduler: The scheduler to execute with.
-            enable_blkrace: Whether blktrace is enabled.
+            enable_blktrace: Whether blktrace is enabled.
 
         Returns:
             The output of processing the job.

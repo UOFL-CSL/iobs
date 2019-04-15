@@ -43,14 +43,6 @@ _FORMATTERS = {
 }
 
 _REGEX = {
-    'btt_d2c_avg': re.compile(r'D2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
-    'btt_d2c_max': re.compile(r'D2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+)'),
-    'btt_d2c_min': re.compile(r'D2C\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
-    'btt_d2c_n': re.compile(r'D2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+)'),
-    'btt_q2c_avg': re.compile(r'Q2C\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
-    'btt_q2c_max': re.compile(r'Q2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+.\d+)\s*(?:\d+)'),
-    'btt_q2c_min': re.compile(r'Q2C\s*(\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+)'),
-    'btt_q2c_n': re.compile(r'Q2C\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(?:\d+.\d+)\s*(\d+)'),
     'device_name': re.compile(r'/dev/(.*)')
 }
 
