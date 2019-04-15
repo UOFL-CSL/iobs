@@ -535,7 +535,7 @@ def run_command_nowait(command):
     Returns:
         The Process, or None if erred.
     """
-    printf('Running command {]'.format(command), print_type=PrintType.DEBUG_LOG)
+    printf('Running command {}'.format(command), print_type=PrintType.DEBUG_LOG)
 
     try:
         args = shlex.split(command)
