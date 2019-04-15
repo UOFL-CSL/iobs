@@ -28,7 +28,12 @@ from iobs.errors import (
     RetryCountExceededError
 )
 from iobs.output import printf, PrintType
-from iobs.settings import SettingsManager
+from iobs.process import cleanup_files
+from iobs.settings import (
+    get_formatter,
+    match_regex,
+    SettingsManager
+)
 
 
 class WorkloadConfiguration(ConfigSectionBase):
@@ -153,6 +158,11 @@ class WorkloadConfiguration(ConfigSectionBase):
             except (JobExecutionError, OutputParsingError) as err:
                 printf('Unable to run job \n{}'.format(err),
                        print_type=PrintType.ERROR_LOG)
+
+        if SettingsManager.get('cleanup_files'):
+            device_name = match_regex(device, 'device_name')
+            files = get_formatter('cleanup_blktrace').format(device_name)
+            cleanup_files(files)
 
         raise RetryCountExceededError(
             'Unable to run job, exceeded retry counts'

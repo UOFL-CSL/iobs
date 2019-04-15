@@ -38,6 +38,7 @@ _FORMATTERS = {
     'blktrace': 'blktrace -d {} -o {} -b 16384 -n 8',  # device, device_name
     'blkparse': 'blkparse -i {0} -d {0}.blkparse.bin -q -O -M',  # device_name
     'btt': 'btt -i {}.blkparse.bin',  # device_name
+    'clean_blktrace': '{0}.blktrace.* {0}.blkparse.bin *_iops_fp.dat *_mbps_fp.dat',  # device_name
     'template': '<%{}%>'
 }
 
@@ -56,6 +57,7 @@ _REGEX = {
 
 class SettingsManager:
     """Controls settings set by command-line arguments."""
+    cleanup_files = False
     continue_on_failure = False
     log_enabled = False
     output_directory = os.getcwd()
