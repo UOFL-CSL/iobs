@@ -24,9 +24,16 @@ from iobs.errors import (
     OutputParsingError
 )
 from iobs.process import (
+    terminate_process,
     change_scheduler,
     clear_caches,
-    run_command
+    ProcessManager,
+    run_command,
+    run_command_nowait
+)
+from iobs.settings import (
+    get_formatter,
+    match_regex
 )
 
 
@@ -43,19 +50,125 @@ class Job(ABC):
         self.device = device
         self.scheduler = scheduler
 
-    def process(self):
+    @abstractmethod
+    def execute(self):
+        """Executes the job."""
+
+    def process(self, use_blktrace):
         """Processes the job.
+
+        Args:
+            use_blktrace: Whether to use blktrace.
 
         Returns:
             The output of the job.
         """
         change_scheduler(self.device, self.scheduler)
         clear_caches(self.device)
+
+        if use_blktrace:
+            try:
+                bp = self.run_blktrace()
+                job_metrics = self.execute()
+                blktrace_metrics = self.process_blktrace(bp)
+                job_metrics.update(blktrace_metrics)
+                return job_metrics
+            except (JobExecutionError, OutputParsingError) as err:
+                ProcessManager.clear_processes()
+                raise err
+
         return self.execute()
 
-    @abstractmethod
-    def execute(self):
-        """Executes the job."""
+    def run_blktrace(self):
+        """Executes blktrace.
+
+        Returns:
+            The blktrace process.
+        """
+        device_name = match_regex(self.device, 'device_name')
+        command = get_formatter('blktrace').format(self.device, device_name)
+        p = run_command_nowait(command)
+
+        if p is None:
+            raise JobExecutionError('Unable to run {}'.format(command))
+
+        return p
+
+    def process_blktrace(self, process):
+        """Finishes and processes a blktrace process.
+
+        Args:
+            process: The blktrace process.
+
+        Returns:
+            A dictionary of metrics.
+        """
+        blktrace_out, _ = terminate_process(process)
+
+        if blktrace_out is None:
+            raise JobExecutionError(
+                'Unable to run blktrace for device {}'
+                .format(self.device)
+            )
+
+        device_name = match_regex(self.device, 'device_name')
+        blkparse_command = get_formatter('blkparse').format(device_name)
+
+        blkparse_out, _ = run_command(blkparse_command)
+
+        if blkparse_out is None:
+            raise JobExecutionError(
+                'Unable to run blkparse for device {}'
+                .format(self.device)
+            )
+
+        btt_command = get_formatter('btt').format(device_name)
+        btt_out, _ = run_command(btt_command)
+
+        if btt_out is None:
+            raise JobExecutionError(
+                'Unable to run btt for device {}'
+                .format(self.device)
+            )
+
+        bts = self.get_btt_out_short(btt_out)
+        printf('Blktrace output:\n{}'.format(bts),
+               print_type=PrintType.DEBUG_LOG)
+
+        return self.collect_blktrace_output(btt_out)
+
+    def get_btt_out_short(self, out):
+        x = out.split("# Total System")[0]
+        return x.split("==================== All Devices ====================")[-1]
+
+    def collect_blktrace_output(self, output):
+        """Collects the output metrics from the job execution.
+
+        Args:
+            output: The raw output.
+
+        Returns:
+            A dictionary mapping metric names to values.
+
+        Raises:
+            OutputParsingError: If unable to parse raw output.
+        """
+        try:
+            ret = {}
+            for line in output.split('\n'):
+                if line[:3] in ('D2C', 'Q2C'):
+                    t = line[:3].lower()
+                    ls = line.split()
+                    ret['{}_min'.format(t)] = ls[1]
+                    ret['{}_avg'.format(t)] = ls[2]
+                    ret['{}_max'.format(t)] = ls[3]
+                    ret['{}_n'.format(t)] = ls[4]
+
+            return ret
+        except (KeyError, IndexError) as err:
+            raise OutputParsingError(
+                'Unable to parse output\n{}'.format(err)
+            )
 
 
 class FilebenchJob(Job):

@@ -30,6 +30,7 @@ from iobs.settings import (
     is_valid_workload_type
 )
 from iobs.util import (
+    cast_bool,
     try_split
 )
 
@@ -75,5 +76,9 @@ class GlobalConfiguration(ConfigSectionBase):
                 conversion_fn=int,
                 validation_fn=lambda x: x >= 1,
                 default_value=1
+            ),
+            'enable_blktrace': ConfigAttribute(
+                conversion_fn=cast_bool,
+                default_value=False
             )
         }

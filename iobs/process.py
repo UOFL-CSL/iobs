@@ -46,7 +46,7 @@ class ProcessManager:
             command: The command being run in the process.
             process: The process.
         """
-        ProcessManager.PROCESSES += CommandProcess(command, process)
+        ProcessManager.PROCESSES.append(CommandProcess(command, process))
 
     @staticmethod
     def clear_finished_processes():
@@ -73,6 +73,16 @@ class ProcessManager:
     def clear_processes():
         """Clears all tracked processes."""
         ProcessManager.PROCESSES.clear()
+
+    @staticmethod
+    def clear_process(command):
+        """Clears a specific process by it's command."""
+        for i, p in enumerate(ProcessManager.PROCESSES):
+            if p.command == command:
+                ProcessManager.PROCESSES[i], ProcessManager.PROCESSES[-1] = \
+                    ProcessManager.PROCESSES[-1], ProcessManager.PROCESSES[i]
+                ProcessManager.PROCESSES.pop()
+                break
 
     @staticmethod
     def failed_processes():
@@ -246,6 +256,9 @@ def cleanup_files(files):
     """
     printf('Cleaning up files', print_type=PrintType.DEBUG_LOG)
 
+    if isinstance(files, str):
+        files = files.split(' ')
+
     for file in files:
         printf('Removing files %s' % file, print_type=PrintType.DEBUG_LOG)
         if run_system_command('rm -f {}'.format(file)) != 0:
@@ -278,6 +291,7 @@ def get_device_major_minor(device):
            print_Type=PrintType.DEBUG_LOG)
 
     return out
+
 
 def get_device_nomerges(device):
     """Returns the current nomerges for the device.
@@ -470,7 +484,7 @@ def run_command(command, ignore_output=False):
                print_type=PrintType.ERROR_LOG)
         return None, None
     finally:
-        ProcessManager.clear_processes()
+        ProcessManager.clear_process(command)
 
 
 def _wait_for_process(command, p):
@@ -513,6 +527,38 @@ def _communicate_to_process(command, p):
     return out.decode('utf-8'), rc
 
 
+def run_command_nowait(command):
+    """Runs a command via subprocess communication, and does not communicate
+       with it for completion. It instead returns the process so the caller
+       can handle it.
+
+    Args:
+        command: The command.
+
+    Returns:
+        The Process, or None if erred.
+    """
+    printf('Running command {}'.format(command), print_type=PrintType.DEBUG_LOG)
+
+    try:
+        args = shlex.split(command)
+        p = subprocess.Popen(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            preexec_fn=os.setsid)
+
+        ProcessManager.add_process(command, p)
+        return p
+
+    except (ValueError, subprocess.CalledProcessError, FileNotFoundError) as err:
+        printf('Command {} erred:\n{}'.format(command, err),
+               print_type=PrintType.ERROR_LOG)
+        ProcessManager.clear_process(command)
+        return None
+
+
 def run_system_command(command, silence=True):
     """Runs a system command.
 
@@ -536,6 +582,27 @@ def run_system_command(command, silence=True):
         printf('Error occurred running command {}\n{}'.format(command, err),
                print_type=PrintType.ERROR_LOG)
         return -1
+
+
+def terminate_process(process):
+    """Terminates a process.
+
+    Args:
+        process: The process.
+
+    Returns:
+        A tuple of the output and return code.
+    """
+    process.terminate()
+    out, err = process.communicate()
+    rc = process.returncode
+
+    if err:
+        printf('Process [{}] erred with return code {}:\n{}'
+               .format(process.pid, rc, err.decode('utf-8')),
+               print_type=PrintType.ERROR_LOG)
+
+    return out.decode('utf-8'), rc
 
 
 def validate_schedulers(schedulers, devices):

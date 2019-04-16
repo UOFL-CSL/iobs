@@ -49,7 +49,8 @@ class OutputConfiguration(ConfigSectionBase):
     @abstractmethod
     def _write_header(self, output, universal_metrics,
                       template_order, template_spd,
-                      environment_order, environment_spd):
+                      environment_order, environment_spd,
+                      enable_blktrace):
         """Writes the header of the output file.
 
         Args:
@@ -59,6 +60,7 @@ class OutputConfiguration(ConfigSectionBase):
             template_spd: The template setting permutation in dict form.
             environment_order: The ordered of environment setting permutations.
             environment_spd: The environment setting permutation in dict form.
+            enable_blktrace: Whether blktrace is enabled.
         """
 
     @abstractmethod
@@ -112,7 +114,8 @@ class OutputConfiguration(ConfigSectionBase):
         return os.path.join(output_directory, output_file)
 
     def process(self, output, workload, device, scheduler,
-                template_setting_permutation, environment_setting_permutation):
+                template_setting_permutation, environment_setting_permutation,
+                enable_blktrace):
         """Processes the output of a job.
 
         Args:
@@ -122,6 +125,7 @@ class OutputConfiguration(ConfigSectionBase):
             scheduler: The scheduler.
             template_setting_permutation: The template settings permutation.
             environment_setting_permutation: The environment settings permutation.
+            enable_blktrace: Whether to use blktrace metrics.
         """
         template_order = None
         template_spd = None
@@ -142,10 +146,12 @@ class OutputConfiguration(ConfigSectionBase):
             'device': device,
             'scheduler': scheduler
         }
+
         if not self._wrote_header:
             self.header_order = self._write_header(
                 output, universal_metrics, template_order,
-                template_spd, environment_order, environment_spd
+                template_spd, environment_order, environment_spd,
+                enable_blktrace
             )
             self._wrote_header = True
 
@@ -200,6 +206,14 @@ class OutputConfiguration(ConfigSectionBase):
             'append_environment': ConfigAttribute(
                 conversion_fn=cast_bool,
                 default_value=True
+            ),
+            'append_blktrace': ConfigAttribute(
+                conversion_fn=cast_bool,
+                default_value=True
+            ),
+            'ignore_missing': ConfigAttribute(
+                conversion_fn=cast_bool,
+                default_value=False
             )
         }
 
@@ -217,6 +231,18 @@ class OutputConfiguration(ConfigSectionBase):
 
         f.update({x: x for x in f.values()})
         return f
+
+    def _get_blktrace_order(self):
+        return [
+            'd2c_avg',
+            'd2c_max',
+            'd2c_min',
+            'd2c_n',
+            'q2c_avg',
+            'q2c_max',
+            'q2c_min',
+            'q2c_n'
+        ]
 
 
 class FilebenchOutputConfiguration(OutputConfiguration):
@@ -282,7 +308,8 @@ class FilebenchOutputConfiguration(OutputConfiguration):
 
     def _write_header(self, output, universal_metrics,
                       template_order, template_spd,
-                      environment_order, environment_spd):
+                      environment_order, environment_spd,
+                      enable_blktrace):
         """Writes the header of the output file.
 
         Args:
@@ -292,6 +319,7 @@ class FilebenchOutputConfiguration(OutputConfiguration):
             template_spd: The template setting permutation in dict form.
             environment_order: The ordered of environment setting permutations.
             environment_spd: The environment setting permutation in dict form.
+            enable_blktrace: Whether blktrace is enabled.
         """
         header_order = []
         output_file = self.get_output_file()
@@ -299,6 +327,7 @@ class FilebenchOutputConfiguration(OutputConfiguration):
         ft = self._get_format_translation()
         ut = self._get_universal_format_translation()
         fo = self._get_flowops_order(output)
+        bt = set(self._get_blktrace_order())
 
         with open(output_file, 'w+') as f:
             for fi in self.format:
@@ -327,6 +356,14 @@ class FilebenchOutputConfiguration(OutputConfiguration):
                     header_order.append(fi)
                     f.write(fi)
                     f.write(',')
+                elif fi in bt:
+                    header_order.append(fi)
+                    f.write(fi)
+                    f.write(',')
+                elif self.ignore_missing:
+                    header_order.append(fi)
+                    f.write(fi)
+                    f.write(',')
                 else:
                     raise OutputFormatError(
                         'Output format is invalid, unable to parse {}'.format(fi)
@@ -340,6 +377,12 @@ class FilebenchOutputConfiguration(OutputConfiguration):
 
             if self.append_environment:
                 for t in environment_order:
+                    header_order.append(t)
+                    f.write(t)
+                    f.write(',')
+
+            if enable_blktrace and self.append_blktrace:
+                for t in self._get_blktrace_order():
                     header_order.append(t)
                     f.write(t)
                     f.write(',')
@@ -376,6 +419,9 @@ class FilebenchOutputConfiguration(OutputConfiguration):
                     f.write(',')
                 elif fi in environment_spd:
                     f.write(str(environment_spd[fi]))
+                    f.write(',')
+                elif self.ignore_missing:
+                    f.write('NONE')
                     f.write(',')
                 else:
                     raise OutputFormatError('Unable to write metric {}'.format(fi))
@@ -536,7 +582,8 @@ class FIOOutputConfiguration(OutputConfiguration):
 
     def _write_header(self, output, universal_metrics,
                       template_order, template_spd,
-                      environment_order, environment_spd):
+                      environment_order, environment_spd,
+                      enable_blktrace):
         """Writes the header of the output file.
 
         Args:
@@ -546,6 +593,7 @@ class FIOOutputConfiguration(OutputConfiguration):
             template_spd: The template setting permutation in dict form.
             environment_order: The ordered of environment setting permutations.
             environment_spd: The environment setting permutation in dict form.
+            enable_blktrace: Whether blktrace is enabled.
         """
         header_order = []
         output_file = self.get_output_file()
@@ -555,6 +603,7 @@ class FIOOutputConfiguration(OutputConfiguration):
         lpt = self._get_lat_percentile_format_translation()
         cpt = self._get_clat_percentile_format_translation()
         po = self._get_percentile_order(output)
+        bt = set(self._get_blktrace_order())
 
         with open(output_file, 'w+') as f:
             for fi in self.format:
@@ -588,6 +637,14 @@ class FIOOutputConfiguration(OutputConfiguration):
                     header_order.append(fi)
                     f.write(fi)
                     f.write(',')
+                elif fi in bt:
+                    header_order.append(fi)
+                    f.write(fi)
+                    f.write(',')
+                elif self.ignore_missing:
+                    header_order.append(fi)
+                    f.write(fi)
+                    f.write(',')
                 else:
                     raise OutputFormatError(
                         'Output format is invalid, unable to parse {}'.format(fi)
@@ -601,6 +658,12 @@ class FIOOutputConfiguration(OutputConfiguration):
 
             if self.append_environment:
                 for t in environment_order:
+                    header_order.append(t)
+                    f.write(t)
+                    f.write(',')
+
+            if enable_blktrace and self.append_blktrace:
+                for t in self._get_blktrace_order():
                     header_order.append(t)
                     f.write(t)
                     f.write(',')
@@ -637,6 +700,9 @@ class FIOOutputConfiguration(OutputConfiguration):
                     f.write(',')
                 elif fi in environment_spd:
                     f.write(str(environment_spd[fi]))
+                    f.write(',')
+                elif self.ignore_missing:
+                    f.write('NONE')
                     f.write(',')
                 else:
                     raise OutputFormatError('Unable to write metric {}'.format(fi))
