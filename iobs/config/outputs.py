@@ -234,14 +234,14 @@ class OutputConfiguration(ConfigSectionBase):
 
     def _get_blktrace_order(self):
         return [
-            'd2c_avg',
-            'd2c_max',
-            'd2c_min',
-            'd2c_n',
-            'q2c_avg',
-            'q2c_max',
-            'q2c_min',
-            'q2c_n'
+            'd2c-avg',
+            'd2c-max',
+            'd2c-min',
+            'd2c-n',
+            'q2c-avg',
+            'q2c-max',
+            'q2c-min',
+            'q2c-n'
         ]
 
 

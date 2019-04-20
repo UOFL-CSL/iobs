@@ -159,10 +159,10 @@ class Job(ABC):
                 if line[:3] in ('D2C', 'Q2C'):
                     t = line[:3].lower()
                     ls = line.split()
-                    ret['{}_min'.format(t)] = ls[1]
-                    ret['{}_avg'.format(t)] = ls[2]
-                    ret['{}_max'.format(t)] = ls[3]
-                    ret['{}_n'.format(t)] = ls[4]
+                    ret['{}-min'.format(t)] = ls[1]
+                    ret['{}-avg'.format(t)] = ls[2]
+                    ret['{}-max'.format(t)] = ls[3]
+                    ret['{}-n'.format(t)] = ls[4]
 
             return ret
         except (KeyError, IndexError) as err:
