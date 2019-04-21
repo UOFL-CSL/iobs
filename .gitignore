@@ -62,3 +62,7 @@ target/
 .venv
 venv/
 ENV/
+
+# Graphs
+.pdf
+.eps
