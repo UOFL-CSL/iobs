@@ -1,0 +1,14 @@
+[global]
+name=single-iodepth
+bs=4k
+direct=1
+ramp_time=3
+group_reporting=1
+
+[job]
+size=1G
+ioengine=libaio
+iodepth=<%iodepth%>
+filename=/mnt/<%device_name%>/single.iodepth.file
+rw=<%rw%>
+numjobs=1
