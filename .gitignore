@@ -64,5 +64,5 @@ venv/
 ENV/
 
 # Graphs
-.pdf
-.eps
+*.pdf
+*.eps
