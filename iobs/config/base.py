@@ -21,8 +21,10 @@ from iobs.errors import InvalidSettingError
 from iobs.output import printf, PrintType
 from iobs.process import (
     change_nomerges,
+    change_randomize_va_space,
     change_scheduler,
     get_device_nomerges,
+    get_randomize_va_space,
     get_device_scheduler
 )
 
@@ -178,6 +180,9 @@ class Configuration:
         """Processes the configuration."""
         printf('Processing input file {}'.format(self._input_file),
                print_type=PrintType.DEBUG_LOG)
+
+        if self._workload_type == 'filebench':
+            change_randomize_va_space(0)
 
         for wc in self._workload_configurations:
             wc.process(

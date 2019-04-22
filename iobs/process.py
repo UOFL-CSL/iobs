@@ -24,6 +24,7 @@ import subprocess
 
 from iobs.errors import (
     DeviceSettingChangeError,
+    SystemSettingChangeError,
     SchedulerChangeError
 )
 from iobs.output import printf, PrintType
@@ -168,6 +169,31 @@ def change_nomerges(device, nomerges):
         raise DeviceSettingChangeError(
             'Unable to change nomerges to {} for device {}'
             .format(nomerges, device)
+        )
+
+
+def change_randomize_va_space(randomize_va_space):
+    """Changes the randomize_va_space setting for the given device.
+
+    Args:
+        randomize_va_space: The randomize_va_space setting.
+
+    Returns:
+        True if successful, else False.
+    """
+    printf('Changing randomize_va_space for system to {}'
+           .format(randomize_va_space),
+           print_type=PrintType.DEBUG_LOG)
+
+    command = 'bash -c "echo {} > /proc/sys/kernel/randomize_va_space"' \
+              .format(randomize_va_space)
+
+    _, rc = run_command(command)
+
+    if rc != 0:
+        raise SystemSettingChangeError(
+            'Unable to change randomize_va_space to {} for system'
+            .format(randomize_va_space)
         )
 
 
@@ -346,6 +372,25 @@ def get_device_scheduler(device):
            print_type=PrintType.DEBUG_LOG)
 
     return ret
+
+
+def get_randomize_va_space():
+    """Returns the current randomize_va_space for the system.
+
+    Returns:
+        The current randomize_va_space setting.
+    """
+    printf('Retrieving randomize_va_space for system',
+           print_type=PrintType.DEBUG_LOG)
+
+    out, rc = run_command('cat /proc/sys/kernel/randomize_va_space')
+
+    if rc != 0:
+        printf('Unable to find randomize_va_space for system',
+               print_type=PrintType.ERROR_LOG)
+        return []
+
+    return int(out)
 
 
 def get_schedulers_for_device(device):

@@ -71,6 +71,10 @@ class SchedulerChangeError(IOBSBaseException):
     """Scheduler Change Error"""
 
 
+class SystemSettingChangeError(IOBSBaseException):
+    """System Setting Change Error"""
+
+
 class UndefinedConstantError(IOBSBaseException):
     """Undefined Constant Error"""
 
