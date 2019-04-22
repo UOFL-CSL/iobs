@@ -23,7 +23,7 @@ import stat
 import subprocess
 
 from iobs.errors import (
-    NomergesChangeError,
+    DeviceSettingChangeError,
     SchedulerChangeError
 )
 from iobs.output import printf, PrintType
@@ -165,7 +165,7 @@ def change_nomerges(device, nomerges):
     _, rc = run_command(command)
 
     if rc != 0:
-        raise NomergesChangeError(
+        raise DeviceSettingChangeError(
             'Unable to change nomerges to {} for device {}'
             .format(nomerges, device)
         )

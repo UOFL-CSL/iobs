@@ -23,6 +23,10 @@ class ConfigNotFoundError(IOBSBaseException):
     """Config Not Found Error"""
 
 
+class DeviceSettingChangeError(IOBSBaseException):
+    """Device Setting Change Error"""
+
+
 class InvalidConfigError(IOBSBaseException):
     """Invalid Config Error"""
 
@@ -45,10 +49,6 @@ class InvalidSettingError(IOBSBaseException):
 
 class JobExecutionError(IOBSBaseException):
     """Job Execution Error"""
-
-
-class NomergesChangeError(IOBSBaseException):
-    """Nomerges Change Error"""
 
 
 class OutputFileError(IOBSBaseException):
