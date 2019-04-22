@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed output parsing exception being handled properly.
+- Fixed filebench stalling. Set /sys/proc/kernel/randomize_va_space to 0.
 
 ## [1.1.0] - 2019-03-18
 ### Added

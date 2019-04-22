@@ -23,6 +23,10 @@ class ConfigNotFoundError(IOBSBaseException):
     """Config Not Found Error"""
 
 
+class DeviceSettingChangeError(IOBSBaseException):
+    """Device Setting Change Error"""
+
+
 class InvalidConfigError(IOBSBaseException):
     """Invalid Config Error"""
 
@@ -47,10 +51,6 @@ class JobExecutionError(IOBSBaseException):
     """Job Execution Error"""
 
 
-class NomergesChangeError(IOBSBaseException):
-    """Nomerges Change Error"""
-
-
 class OutputFileError(IOBSBaseException):
     """Output File Error"""
 
@@ -69,6 +69,10 @@ class RetryCountExceededError(IOBSBaseException):
 
 class SchedulerChangeError(IOBSBaseException):
     """Scheduler Change Error"""
+
+
+class SystemSettingChangeError(IOBSBaseException):
+    """System Setting Change Error"""
 
 
 class UndefinedConstantError(IOBSBaseException):

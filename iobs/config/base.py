@@ -21,8 +21,10 @@ from iobs.errors import InvalidSettingError
 from iobs.output import printf, PrintType
 from iobs.process import (
     change_nomerges,
+    change_randomize_va_space,
     change_scheduler,
     get_device_nomerges,
+    get_randomize_va_space,
     get_device_scheduler
 )
 
@@ -165,6 +167,7 @@ class Configuration:
         self._environment_configuration = environment_configuration
         self._workload_configurations = []
         self._device_environments = {}
+        self._system_environment = {}
 
     def add_workload_configuration(self, workload_configuration):
         """Adds a WorkloadConfiguration to process.
@@ -178,6 +181,9 @@ class Configuration:
         """Processes the configuration."""
         printf('Processing input file {}'.format(self._input_file),
                print_type=PrintType.DEBUG_LOG)
+
+        if self._workload_type == 'filebench':
+            change_randomize_va_space(0)
 
         for wc in self._workload_configurations:
             wc.process(
@@ -209,6 +215,17 @@ class Configuration:
             change_nomerges(device, de['nomerges'])
             change_scheduler(device, de['scheduler'])
 
+    def restore_system_environment(self):
+        """Restores system environment.
+
+        NOTE: This should be called after `save_environment` has been called.
+        """
+        printf('Restoring system information...',
+               print_type=PrintType.DEBUG_LOG)
+
+        se = self._system_environment
+        change_randomize_va_space(se['randomize_va_space'])
+
     def save_device_environments(self):
         """Saves device environment information so it can be restored.
 
@@ -227,6 +244,21 @@ class Configuration:
 
             printf('Saving device {} environment: {}'.format(device, de),
                    print_type=PrintType.DEBUG_LOG)
+
+    def save_system_environment(self):
+        """Saves system environment information so it can be restored.
+
+        NOTE: This should be called after `validate` has bee called.
+        """
+        printf('Saving system information...',
+               print_type=PrintType.DEBUG_LOG)
+
+        self._system_environment = {
+            'randomize_va_space': get_randomize_va_space()
+        }
+
+        printf('Saving system environment: {}'.format(self._system_environment),
+               print_type=PrintType.DEBUG_LOG)
 
     def validate(self):
         """Validates the configuration."""

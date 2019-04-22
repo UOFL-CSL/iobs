@@ -122,6 +122,7 @@ def execute(args):
             configuration.validate()
 
             if args.reset_device:
+                configuration.save_system_environment()
                 configuration.save_device_environments()
 
             configuration.process()
@@ -134,6 +135,7 @@ def execute(args):
                    print_type=PrintType.ERROR | PrintType.ERROR_LOG)
         finally:
             if args.reset_device:
+                configuration.restore_system_environment()
                 configuration.restore_device_environments()
 
     printf('Finishing program execution...',
