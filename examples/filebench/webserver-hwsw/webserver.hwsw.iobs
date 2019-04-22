@@ -1,17 +1,16 @@
 [global]
 devices=/dev/nvme0n1,/dev/nvme1n1,/dev/sdb,/dev/sdd
 schedulers=none,bfq,kyber,mq-deadline
-workload_type=fio
+workload_type=filebench
 repetitions=5
 enable_blktrace=1
 
 [output]
+include_flowops=1
 ignore_missing=1
 
 [template]
 enabled=1
-iodepth=1
-rw=randread
 
-[single-iodepth]
-file=single.iodepth.fio
+[webserver]
+file=webserver.f
