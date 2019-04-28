@@ -233,16 +233,17 @@ class OutputConfiguration(ConfigSectionBase):
         return f
 
     def _get_blktrace_order(self):
-        return [
-            'd2c-avg',
-            'd2c-max',
-            'd2c-min',
-            'd2c-n',
-            'q2c-avg',
-            'q2c-max',
-            'q2c-min',
-            'q2c-n'
-        ]
+        mnames = ['d2c', 'g2i', 'i2d', 'q2c', 'q2g', 'q2q']
+        ret = []
+
+        for n in mnames:
+            ret.extend([
+                '{}-avg'.format(n),
+                '{}-max'.format(n),
+                '{}-min'.format(n),
+                '{}-n'.format(n)
+            ])
+        return ret
 
 
 class FilebenchOutputConfiguration(OutputConfiguration):

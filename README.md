@@ -148,14 +148,12 @@ The following `format` metric names are used by any `workload_type`:
  * `scheduler` (or `s`) - The name of the scheduler.
 
 The following `format` metric names are used if `enable_blktrace` is set in the `global` section:
- * `d2c-avg` - The average d2c.
- * `d2c-min` - The minimum d2c.
- * `d2c-max` - The maximum d2c.
- * `d2c-n` - The number of IOs used in d2c.
- * `q2c-avg` - The average q2c.
- * `q2c-min` - The minimum q2c.
- * `q2c-max` - The maximum q2c.
- * `q2c-n` - The number of IOs used in q2c.
+ * `xxx-avg` - The average xxx.
+ * `xxx-min` - The minimum xxx.
+ * `xxx-max` - The maximum xxx.
+ * `xxx-n` - The number of IOs used in xxx.
+ 
+where each `xxx` is one of 'd2c', 'g2i', 'i2d', 'q2c', 'q2g', or 'q2q'.
  
 **`filebench`**
  * `include_flowops` (optional) - Whether to include flowops metrics. Defaults to False.
