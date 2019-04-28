@@ -153,11 +153,13 @@ class Job(ABC):
         Raises:
             OutputParsingError: If unable to parse raw output.
         """
+        mnames = {'d2c', 'g2i', 'i2d', 'q2c', 'q2g', 'q2q'}
+
         try:
             ret = {}
             for line in output.split('\n'):
-                if line[:3] in ('D2C', 'Q2C'):
-                    t = line[:3].lower()
+                t = line[:3].lower()
+                if t in mnames:
                     ls = line.split()
                     ret['{}-min'.format(t)] = ls[1]
                     ret['{}-avg'.format(t)] = ls[2]
