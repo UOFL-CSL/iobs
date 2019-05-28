@@ -33,7 +33,7 @@
 # 10 seconds. Thus the write bandwidth will be set as $filesize/$repintval.
 #
 
-set $dir=/mnt/<%device_name%>/tmp
+set $dir=/mnt/<%device_name%>/videoserver
 set $eventrate=96
 set $filesize=10g
 set $nthreads=48

@@ -23,7 +23,7 @@
 # Use is subject to license terms.
 #
 
-set $dir=/mnt/<%device_name%>/tmp
+set $dir=/mnt/<%device_name%>/webproxy
 set $nfiles=10000
 set $meandirwidth=1000000
 set $meanfilesize=16k
