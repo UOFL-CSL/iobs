@@ -1,0 +1,15 @@
+[global]
+name=sync-same
+bs=<%bs%>
+direct=1
+group_reporting1
+percentile_list=70:75:80:85:90:91:92:93:94:95:96:97:98:99:99.9:99.99:99.999
+runtime=30
+
+[job]
+size=30G
+io_size=3G
+ioengine=sync
+filename=/mnt/<%device_name%>/30G.file
+rw=<%rw%>
+numjobs=<%numjobs%>
